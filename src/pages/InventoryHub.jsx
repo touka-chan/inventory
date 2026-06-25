@@ -1,5 +1,6 @@
-import { useState, useMemo, useRef, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { api } from "../services/api";
 import {
   PackageSearch,
   Box,
@@ -22,40 +23,17 @@ import {
   CheckSquare,
   Square,
   ChevronDown,
-  Info
+  Info,
+  LogOut,
+  ArchiveRestore
 } from "lucide-react";
 
-// Mock Data for Main Tables
-const mockSuppliers = [
-  { id: "S001", name: "TechSource Distributors" },
-  { id: "S002", name: "Prime Accessories Wholesale" },
-  { id: "S003", name: "Global Hardware Co." }
-];
-
-const initialProducts = [
-  { id: "P001", sku: "SKU-1029", name: "AlphaTech Pro Wireless Earbuds", category: "Electronics", supplierId: "S001", costPrice: 1500, sellingPrice: 2500, stock: 145, reorderLevel: 50, status: "active" },
-  { id: "P002", sku: "SKU-8832", name: "ErgoGrip Mechanical Keyboard", category: "Electronics", supplierId: "S001", costPrice: 1800, sellingPrice: 2500, stock: 20, reorderLevel: 30, status: "active" },
-  { id: "P003", sku: "SKU-3321", name: "Legacy USB 2.0 Hub", category: "Accessories", supplierId: "S002", costPrice: 200, sellingPrice: 450, stock: 12, reorderLevel: 15, status: "active" },
-  { id: "P004", sku: "SKU-4110", name: "Lumina 4K Monitor", category: "Electronics", supplierId: "S001", costPrice: 10000, sellingPrice: 12840, stock: 32, reorderLevel: 10, status: "active" },
-  { id: "P005", sku: "SKU-1190", name: "Wired Earphones", category: "Accessories", supplierId: "S002", costPrice: 150, sellingPrice: 350, stock: 8, reorderLevel: 20, status: "active" },
-  { id: "P006", sku: "SKU-9021", name: "TitanX Gaming Mouse", category: "Electronics", supplierId: "S001", costPrice: 1200, sellingPrice: 1850, stock: 65, reorderLevel: 15, status: "active" },
-  { id: "P007", sku: "SKU-7731", name: "Old Gen Phone Cases", category: "Accessories", supplierId: "S002", costPrice: 50, sellingPrice: 150, stock: 0, reorderLevel: 10, status: "active" },
-  { id: "P008", sku: "SKU-5542", name: "Tablet Stand", category: "Accessories", supplierId: "S002", costPrice: 60, sellingPrice: 120, stock: 215, reorderLevel: 50, status: "active" },
-  { id: "P009", sku: "SKU-0000", name: "Deleted Item Example", category: "Electronics", supplierId: "S001", costPrice: 100, sellingPrice: 200, stock: 5, reorderLevel: 10, status: "archived" }
-];
-
-// Mock Data for Notifications Preview
-const mockNotifications = [
-  { id: 1, title: "Low Stock Alert", desc: "ErgoGrip Mechanical Keyboard is running low (20 left).", time: "10m ago", read: false, type: "warning" },
-  { id: 2, title: "New Supplier Added", desc: "EcoPack Solutions has been registered.", time: "1h ago", read: false, type: "info" },
-  { id: 3, title: "Stock Adjustment", desc: "Stock In for Legacy USB 2.0 Hub (+10).", time: "2h ago", read: true, type: "success" },
-  { id: 4, title: "Category Updated", desc: "Electronics category was modified.", time: "1d ago", read: true, type: "info" },
-  { id: 5, title: "System Update", desc: "OptiStock v3.5 has been deployed.", time: "2d ago", read: true, type: "info" },
-];
-
 function InventoryHub() {
-  const [products, setProducts] = useState(initialProducts);
-  
+  const [products, setProducts] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+
   // Filtering & Search States
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
@@ -74,6 +52,7 @@ function InventoryHub() {
   const formCategoryRef = useRef(null);
   const formSupplierRef = useRef(null);
   const notifRef = useRef(null);
+  const profileRef = useRef(null);
 
   // Bulk Actions State
   const [selectedProducts, setSelectedProducts] = useState([]);
@@ -86,6 +65,26 @@ function InventoryHub() {
   // Delete Confirmation Modal State
   const [deleteModalConfig, setDeleteModalConfig] = useState({ isOpen: false, type: null, id: null });
 
+  // Profile Dropdown State
+  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+
+  // Archived Products Modal
+  const [isArchivedModalOpen, setIsArchivedModalOpen] = useState(false);
+  const [archivedModalClosing, setArchivedModalClosing] = useState(false);
+  const [archivedProducts, setArchivedProducts] = useState([]);
+  const [archivedLoading, setArchivedLoading] = useState(false);
+
+  // Permanent Delete Confirmation
+  const [permDeleteTarget, setPermDeleteTarget] = useState(null);
+
+  // Sign Out Confirmation
+  const [signoutConfirm, setSignoutConfirm] = useState(false);
+
+  const navigate = useNavigate();
+
+  const currentUser = useMemo(() => {
+    try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
+  }, []);
   const [editingProduct, setEditingProduct] = useState(null);
   const [formError, setFormError] = useState("");
 
@@ -95,15 +94,36 @@ function InventoryHub() {
   const toastExitTimeout = useRef(null);
 
   const [formData, setFormData] = useState({
-    sku: "", name: "", category: "Electronics", supplierId: "", costPrice: "", sellingPrice: "", reorderLevel: ""
+    sku: "", name: "", category_id: "", supplier_id: "", cost_price: "", selling_price: "", reorder_level: "", stock: ""
   });
 
   const activeProducts = useMemo(() => products.filter(p => p.status === 'active'), [products]);
   const totalItems = activeProducts.length;
-  const lowStockCount = activeProducts.filter(p => p.stock <= p.reorderLevel).length;
-  const totalInventoryValue = activeProducts.reduce((sum, p) => sum + (p.costPrice * p.stock), 0);
+  const lowStockCount = activeProducts.filter(p => p.stock <= p.reorder_level).length;
+  const totalInventoryValue = activeProducts.reduce((sum, p) => sum + (Number(p.cost_price) * p.stock), 0);
 
-  const unreadNotifCount = mockNotifications.filter(n => !n.read).length;
+  const unreadNotifCount = notifications.filter(n => !n.is_read).length;
+
+  const categoryOptions = useMemo(() => {
+    const cats = categories.map(c => c.name);
+    return ['All', ...cats];
+  }, [categories]);
+
+  const loadData = useCallback(async () => {
+    try {
+      const [prodRes, catRes, supRes, notifRes] = await Promise.all([
+        api.getProducts(), api.getCategories(), api.getSuppliers(), api.getNotifications(),
+      ]);
+      setProducts(prodRes.results || prodRes);
+      setCategories(catRes.results || catRes);
+      setSuppliers(supRes.results || supRes);
+      setNotifications(notifRes.results || notifRes);
+    } catch (err) {
+      console.error('Failed to load data:', err);
+    }
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
 
   // Handle click outside for ALL custom dropdowns
   useEffect(() => {
@@ -113,6 +133,7 @@ function InventoryHub() {
       if (formCategoryRef.current && !formCategoryRef.current.contains(event.target)) setIsFormCategoryDropdownOpen(false);
       if (formSupplierRef.current && !formSupplierRef.current.contains(event.target)) setIsFormSupplierDropdownOpen(false);
       if (notifRef.current && !notifRef.current.contains(event.target)) setIsNotifDropdownOpen(false);
+      if (profileRef.current && !profileRef.current.contains(event.target)) setIsProfileDropdownOpen(false);
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -124,8 +145,8 @@ function InventoryHub() {
       const query = searchQuery.toLowerCase();
       const matchesSearch = product.name.toLowerCase().includes(query) || product.sku.toLowerCase().includes(query);
       if (!matchesSearch) return false;
-      if (categoryFilter !== "All" && product.category !== categoryFilter) return false;
-      if (stockFilter === "Low Stock" && product.stock > product.reorderLevel) return false;
+      if (categoryFilter !== "All" && product.category_name !== categoryFilter) return false;
+      if (stockFilter === "Low Stock" && product.stock > product.reorder_level) return false;
       return true;
     });
     return result;
@@ -177,7 +198,7 @@ function InventoryHub() {
   const handleInputChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
   const resetForm = () => {
-    setFormData({ sku: "", name: "", category: "Electronics", supplierId: "", costPrice: "", sellingPrice: "", reorderLevel: "" });
+    setFormData({ sku: "", name: "", category: "Electronics", supplierId: "", costPrice: "", sellingPrice: "", reorderLevel: "", stock: "" });
     setFormError("");
   };
 
@@ -191,8 +212,8 @@ function InventoryHub() {
     resetForm();
     setEditingProduct(product);
     setFormData({
-      sku: product.sku, name: product.name, category: product.category, supplierId: product.supplierId || "",
-      costPrice: product.costPrice, sellingPrice: product.sellingPrice, reorderLevel: product.reorderLevel,
+      sku: product.sku, name: product.name, category: product.category_name, supplierId: product.supplier_id || "",
+      costPrice: product.cost_price, sellingPrice: product.selling_price, reorderLevel: product.reorder_level, stock: product.stock,
     });
     setIsEditModalOpen(true);
     setIsClosing(false);
@@ -203,63 +224,126 @@ function InventoryHub() {
     setIsClosing(false);
   };
 
-  // Submit Handlers
-  const handleAddProduct = (e) => {
-    e.preventDefault();
-    setFormError("");
-    const isDuplicate = products.some(p => p.sku.toLowerCase() === formData.sku.toLowerCase() && p.status === 'active');
-    if (isDuplicate) return setFormError("Barcode/SKU already assigned to another active product.");
-    if (parseFloat(formData.sellingPrice) <= parseFloat(formData.costPrice)) return setFormError("Selling price must be strictly greater than cost price.");
-    if (!formData.supplierId) return setFormError("Please select a supplier.");
-
-    const newProduct = {
-      id: `P${Date.now()}`,
-      sku: formData.sku, name: formData.name, category: formData.category, supplierId: formData.supplierId,
-      costPrice: parseFloat(formData.costPrice), sellingPrice: parseFloat(formData.sellingPrice),
-      reorderLevel: parseInt(formData.reorderLevel) || 0, stock: 0, status: "active"
-    };
-    setProducts([newProduct, ...products]);
-    closeAllModals();
-    showToast(`${formData.name} successfully added to inventory.`);
+  const categoryNameToId = (name) => {
+    const found = categories.find(c => c.name === name);
+    return found ? found.id : '';
   };
 
-  const handleEditProduct = (e) => {
+  // Submit Handlers
+  const handleAddProduct = async (e) => {
     e.preventDefault();
     setFormError("");
-    const isDuplicate = products.some(p => p.sku.toLowerCase() === formData.sku.toLowerCase() && p.id !== editingProduct.id && p.status === 'active');
-    if (isDuplicate) return setFormError("Barcode/SKU already assigned to another active product.");
     if (parseFloat(formData.sellingPrice) <= parseFloat(formData.costPrice)) return setFormError("Selling price must be strictly greater than cost price.");
     if (!formData.supplierId) return setFormError("Please select a supplier.");
 
-    const updatedProducts = products.map(p => {
-      if (p.id === editingProduct.id) {
-        return {
-          ...p, sku: formData.sku, name: formData.name, category: formData.category, supplierId: formData.supplierId,
-          costPrice: parseFloat(formData.costPrice), sellingPrice: parseFloat(formData.sellingPrice),
-          reorderLevel: parseInt(formData.reorderLevel) || 0,
-        };
-      }
-      return p;
-    });
-    setProducts(updatedProducts);
-    closeAllModals();
-    showToast(`${formData.name} successfully updated.`);
+    try {
+      const payload = {
+        sku: formData.sku, name: formData.name,
+        category: categoryNameToId(formData.category),
+        supplier: formData.supplierId,
+        cost_price: parseFloat(formData.costPrice),
+        selling_price: parseFloat(formData.sellingPrice),
+        reorder_level: parseInt(formData.reorderLevel) || 0,
+        stock: parseInt(formData.stock) || 0,
+      };
+      const newProduct = await api.createProduct(payload);
+      setProducts([newProduct, ...products]);
+      closeAllModals();
+      showToast(`${formData.name} successfully added to inventory.`);
+    } catch (err) {
+      setFormError(err.message);
+    }
+  };
+
+  const handleEditProduct = async (e) => {
+    e.preventDefault();
+    setFormError("");
+    if (parseFloat(formData.sellingPrice) <= parseFloat(formData.costPrice)) return setFormError("Selling price must be strictly greater than cost price.");
+    if (!formData.supplierId) return setFormError("Please select a supplier.");
+
+    try {
+      const payload = {
+        sku: formData.sku, name: formData.name,
+        category: categoryNameToId(formData.category),
+        supplier: formData.supplierId,
+        cost_price: parseFloat(formData.costPrice),
+        selling_price: parseFloat(formData.sellingPrice),
+        reorder_level: parseInt(formData.reorderLevel) || 0,
+        stock: parseInt(formData.stock) || 0,
+      };
+      const updated = await api.updateProduct(editingProduct.id, payload);
+      setProducts(products.map(p => p.id === editingProduct.id ? updated : p));
+      closeAllModals();
+      showToast(`${formData.name} successfully updated.`);
+    } catch (err) {
+      setFormError(err.message);
+    }
   };
 
   // Delete Action Executer
-  const confirmDelete = () => {
-    if (deleteModalConfig.type === 'single') {
-      const target = products.find(p => p.id === deleteModalConfig.id);
-      setProducts(products.map(p => p.id === deleteModalConfig.id ? { ...p, status: "archived" } : p));
-      setSelectedProducts(selectedProducts.filter(selectedId => selectedId !== deleteModalConfig.id));
-      showToast(`${target?.name || "Product"} successfully archived.`);
-    } else if (deleteModalConfig.type === 'bulk') {
-      setProducts(products.map(p => selectedProducts.includes(p.id) ? { ...p, status: "archived" } : p));
-      const count = selectedProducts.length;
-      setSelectedProducts([]);
-      showToast(`${count} products successfully archived.`);
+  const confirmDelete = async () => {
+    try {
+      if (deleteModalConfig.type === 'single') {
+        const target = products.find(p => p.id === deleteModalConfig.id);
+        await api.archiveProduct(deleteModalConfig.id);
+        setProducts(products.map(p => p.id === deleteModalConfig.id ? { ...p, status: "archived" } : p));
+        setSelectedProducts(selectedProducts.filter(selectedId => selectedId !== deleteModalConfig.id));
+        showToast(`${target?.name || "Product"} successfully archived.`);
+      } else if (deleteModalConfig.type === 'bulk') {
+        await Promise.all(selectedProducts.map(id => api.archiveProduct(id)));
+        setProducts(products.map(p => selectedProducts.includes(p.id) ? { ...p, status: "archived" } : p));
+        const count = selectedProducts.length;
+        setSelectedProducts([]);
+        showToast(`${count} products successfully archived.`);
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`);
     }
     closeAllModals();
+  };
+
+  // --- ARCHIVED PRODUCTS HANDLERS ---
+  const openArchivedModal = async () => {
+    setIsArchivedModalOpen(true);
+    setArchivedLoading(true);
+    try {
+      const res = await api.getArchivedProducts();
+      setArchivedProducts(res.results || res);
+    } catch (err) {
+      showToast('Failed to load archived products.');
+    }
+    setArchivedLoading(false);
+  };
+
+  const closeArchivedModal = () => {
+    setArchivedModalClosing(true);
+    setTimeout(() => {
+      setIsArchivedModalOpen(false);
+      setArchivedModalClosing(false);
+    }, 300);
+  };
+
+  const handleUnarchive = async (id) => {
+    try {
+      await api.unarchiveProduct(id);
+      setArchivedProducts(archivedProducts.filter(p => p.id !== id));
+      showToast('Product restored successfully.');
+      loadData();
+    } catch (err) {
+      showToast(`Error: ${err.message}`);
+    }
+  };
+
+  const handlePermanentDelete = async () => {
+    if (!permDeleteTarget) return;
+    try {
+      await api.permanentDeleteProduct(permDeleteTarget);
+      setArchivedProducts(archivedProducts.filter(p => p.id !== permDeleteTarget));
+      setPermDeleteTarget(null);
+      showToast('Product permanently deleted.');
+    } catch (err) {
+      showToast(`Error: ${err.message}`);
+    }
   };
 
   // Bulk Actions Handlers
@@ -355,33 +439,36 @@ function InventoryHub() {
 
                 {/* Previews List - ADDED overscroll-contain HERE */}
                 <div className="flex-1 overflow-y-auto max-h-[50vh] custom-scrollbar overscroll-contain">
-                  {mockNotifications.slice(0, 8).map(notif => (
-                    <div 
-                      key={notif.id} 
-                      className={`p-4 border-b border-[#E7E5E4] last:border-b-0 hover:bg-[#FAF7F2] transition-colors cursor-pointer flex items-start gap-3 ${notif.read ? 'opacity-70 bg-[#FAF7F2]/50' : 'bg-[#FFFFFF]'}`}
-                    >
-                      <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-                        notif.type === 'warning' ? 'bg-[#FAD2CB]/40 text-[#D96B5E]' : 
-                        notif.type === 'success' ? 'bg-[#C3ECE3]/40 text-[#7BB8A7]' : 
-                        'bg-[#EFE9DF] text-[#57534E]'
-                      }`}>
-                        {notif.type === 'warning' ? <AlertCircle size={16} strokeWidth={2.5} /> : 
-                         notif.type === 'success' ? <CheckCircle2 size={16} strokeWidth={2.5} /> : 
-                         <Info size={16} strokeWidth={2.5} />}
+                  {notifications.slice(0, 8).map(notif => {
+                    const notifType = notif.type === 'sale' ? 'success' : ['stock_alert','error'].includes(notif.type) ? 'warning' : 'info';
+                    return (
+                      <div 
+                        key={notif.id} 
+                        className={`p-4 border-b border-[#E7E5E4] last:border-b-0 hover:bg-[#FAF7F2] transition-colors cursor-pointer flex items-start gap-3 ${notif.is_read ? 'opacity-70 bg-[#FAF7F2]/50' : 'bg-[#FFFFFF]'}`}
+                      >
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                          notifType === 'warning' ? 'bg-[#FAD2CB]/40 text-[#D96B5E]' : 
+                          notifType === 'success' ? 'bg-[#C3ECE3]/40 text-[#7BB8A7]' : 
+                          'bg-[#EFE9DF] text-[#57534E]'
+                        }`}>
+                          {notifType === 'warning' ? <AlertCircle size={16} strokeWidth={2.5} /> : 
+                           notifType === 'success' ? <CheckCircle2 size={16} strokeWidth={2.5} /> : 
+                           <Info size={16} strokeWidth={2.5} />}
+                        </div>
+                        
+                        <div className="flex flex-col flex-1 pr-2">
+                          <span className="text-sm font-bold text-[#1A1A1A] leading-tight">{notif.title}</span>
+                          <span className="text-xs text-[#57534E] leading-snug mt-1">{notif.message}</span>
+                          <span className="text-[10px] text-[#A8A29E] font-black mt-2 uppercase tracking-wider">{notif.created_at ? new Date(notif.created_at).toLocaleString() : ''}</span>
+                        </div>
+                        
+                        {!notif.is_read && (
+                          <div className="w-2 h-2 rounded-full bg-[#D96B5E] shrink-0 mt-2"></div>
+                        )}
                       </div>
-                      
-                      <div className="flex flex-col flex-1 pr-2">
-                        <span className="text-sm font-bold text-[#1A1A1A] leading-tight">{notif.title}</span>
-                        <span className="text-xs text-[#57534E] leading-snug mt-1">{notif.desc}</span>
-                        <span className="text-[10px] text-[#A8A29E] font-black mt-2 uppercase tracking-wider">{notif.time}</span>
-                      </div>
-                      
-                      {!notif.read && (
-                        <div className="w-2 h-2 rounded-full bg-[#D96B5E] shrink-0 mt-2"></div>
-                      )}
-                    </div>
-                  ))}
-                  {mockNotifications.length === 0 && (
+                    );
+                  })}
+                  {notifications.length === 0 && (
                     <div className="p-8 text-center text-[#57534E] text-sm font-medium">
                       You're all caught up!
                     </div>
@@ -402,9 +489,35 @@ function InventoryHub() {
             </div>
             {/* ----------------------------- */}
 
-            <div className="flex items-center gap-3 pl-4 border-l border-[#E7E5E4]">
-              <div className="w-10 h-10 rounded-full bg-[#1A1A1A] flex items-center justify-center font-black text-[#FFFFFF] text-sm shadow-sm">
+            <div className="flex items-center gap-3 pl-4 border-l border-[#E7E5E4] relative" ref={profileRef}>
+              <button
+                onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
+                className="w-10 h-10 rounded-full bg-[#1A1A1A] flex items-center justify-center font-black text-[#FFFFFF] text-sm shadow-sm hover:bg-[#57534E] transition-all cursor-pointer"
+              >
                 AD
+              </button>
+
+              <div className={`absolute top-full right-0 mt-3 w-52 bg-[#FFFFFF] border border-[#E7E5E4] rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden transition-all duration-200 origin-top-right ${isProfileDropdownOpen ? 'opacity-100 scale-100 visible' : 'opacity-0 scale-95 invisible'}`}>
+                <div className="p-3 border-b border-[#E7E5E4] bg-[#FAF7F2]">
+                  <p className="text-xs font-bold text-[#57534E]">Signed in as</p>
+                  <p className="text-sm font-black text-[#1A1A1A] truncate">{currentUser.name || 'Admin'}</p>
+                </div>
+
+                <button
+                  onClick={() => { setIsProfileDropdownOpen(false); openArchivedModal(); }}
+                  className="flex items-center gap-3 px-4 py-3.5 text-sm font-bold text-[#1A1A1A] hover:bg-[#FAF7F2] transition-all border-b border-[#E7E5E4] text-left cursor-pointer"
+                >
+                  <ArchiveRestore size={18} className="text-[#57534E]" />
+                  Archived Products
+                </button>
+
+                <button
+                  onClick={() => { setIsProfileDropdownOpen(false); setSignoutConfirm(true); }}
+                  className="flex items-center gap-3 px-4 py-3.5 text-sm font-bold text-[#D96B5E] hover:bg-[#FAD2CB]/20 transition-all text-left cursor-pointer"
+                >
+                  <LogOut size={18} />
+                  Sign Out
+                </button>
               </div>
             </div>
           </div>
@@ -491,7 +604,7 @@ function InventoryHub() {
                   </div>
                   
                   <div className={`absolute top-full right-0 mt-2 py-2 bg-[#FFFFFF] border border-[#E7E5E4] rounded-2xl shadow-lg z-50 overflow-hidden transition-all duration-200 origin-top w-full min-w-[180px] ${isCategoryDropdownOpen ? 'opacity-100 scale-y-100 visible' : 'opacity-0 scale-y-95 invisible'}`}>
-                    {['All', 'Electronics', 'Accessories'].map((option) => (
+                      {categoryOptions.map((option) => (
                       <div 
                         key={option}
                         onClick={() => {
@@ -607,22 +720,22 @@ function InventoryHub() {
                       <td className="py-4 px-4">
                         <div className="flex flex-col">
                           <span className="font-bold text-[#1A1A1A]">{product.name}</span>
-                          <span className="text-xs text-[#57534E]">{product.category}</span>
+                          <span className="text-xs text-[#57534E]">{product.category_name}</span>
                         </div>
                       </td>
                       <td className="py-4 px-4 text-sm text-[#57534E] font-medium">
-                        {mockSuppliers.find(s => s.id === product.supplierId)?.name || "-"}
+                        {product.supplier_name || "-"}
                       </td>
                       <td className="py-4 px-4">
                         <div className="flex flex-col">
-                          <span className="text-xs text-[#57534E]">Cost: ₱{product.costPrice}</span>
-                          <span className="font-bold text-[#1A1A1A]">Sell: ₱{product.sellingPrice}</span>
+                          <span className="text-xs text-[#57534E]">Cost: ₱{product.cost_price}</span>
+                          <span className="font-bold text-[#1A1A1A]">Sell: ₱{product.selling_price}</span>
                         </div>
                       </td>
                       <td className="py-4 px-4">
                         <div className="flex items-center gap-2">
                           <span className="text-lg font-black text-[#1A1A1A]">{product.stock}</span>
-                          {product.stock <= product.reorderLevel ? (
+                          {product.stock <= product.reorder_level ? (
                             <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-[#D96B5E] bg-[#FAD2CB]/40 px-2 py-1 rounded border border-[#FAD2CB]">
                               <AlertCircle size={12} /> Low
                             </span>
@@ -632,7 +745,7 @@ function InventoryHub() {
                             </span>
                           )}
                         </div>
-                        <span className="text-[10px] text-[#57534E]">Reorder at: {product.reorderLevel}</span>
+                        <span className="text-[10px] text-[#57534E]">Reorder at: {product.reorder_level}</span>
                       </td>
                       <td className="py-4 px-6 text-right">
                         <div className="flex justify-end gap-2">
@@ -715,20 +828,20 @@ function InventoryHub() {
                     </div>
                     {/* ADDED overscroll-contain HERE FOR DROPDOWN LIST */}
                     <div className={`absolute top-full left-0 right-0 mt-2 py-2 bg-[#FFFFFF] border border-[#E7E5E4] rounded-2xl shadow-xl z-50 max-h-60 overflow-y-auto custom-scrollbar overscroll-contain transition-all duration-200 origin-top ${isFormCategoryDropdownOpen ? 'opacity-100 scale-y-100 visible' : 'opacity-0 scale-y-95 invisible'}`}>
-                      {['Electronics', 'Accessories', 'Hardware'].map((option) => (
+                      {categories.map((cat) => (
                         <div 
-                          key={option}
+                          key={cat.id}
                           onClick={() => {
-                            setFormData({ ...formData, category: option });
+                            setFormData({ ...formData, category: cat.name });
                             setIsFormCategoryDropdownOpen(false);
                           }}
                           className={`mx-2 my-1 px-4 py-3 text-sm font-bold cursor-pointer transition-all rounded-full flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-left ${
-                            formData.category === option 
+                            formData.category === cat.name 
                               ? 'bg-[#7BB8A7]/20 text-[#1A1A1A]' 
                               : 'text-[#57534E] hover:bg-[#EFE9DF] hover:text-[#1A1A1A]'
                           }`}
                         >
-                          {option}
+                          {cat.name}
                         </div>
                       ))}
                     </div>
@@ -753,14 +866,14 @@ function InventoryHub() {
                     >
                       <span className={`text-sm font-bold truncate ${formData.supplierId ? 'text-[#1A1A1A]' : 'text-[#A8A29E]'}`}>
                         {formData.supplierId 
-                          ? mockSuppliers.find(s => s.id === formData.supplierId)?.name 
+                          ? suppliers.find(s => s.id === formData.supplierId)?.company_name 
                           : "Select a supplier"}
                       </span>
                       <ChevronDown className={`w-5 h-5 text-[#57534E] shrink-0 transition-transform duration-300 ${isFormSupplierDropdownOpen ? 'rotate-180' : ''}`} />
                     </div>
                     {/* ADDED overscroll-contain HERE FOR DROPDOWN LIST */}
                     <div className={`absolute top-full left-0 right-0 mt-2 py-2 bg-[#FFFFFF] border border-[#E7E5E4] rounded-2xl shadow-xl z-50 max-h-60 overflow-y-auto custom-scrollbar overscroll-contain transition-all duration-200 origin-top ${isFormSupplierDropdownOpen ? 'opacity-100 scale-y-100 visible' : 'opacity-0 scale-y-95 invisible'}`}>
-                      {mockSuppliers.map((supplier) => (
+                      {suppliers.map((supplier) => (
                         <div 
                           key={supplier.id}
                           onClick={() => {
@@ -773,7 +886,7 @@ function InventoryHub() {
                               : 'text-[#57534E] hover:bg-[#EFE9DF] hover:text-[#1A1A1A]'
                           }`}
                         >
-                          {supplier.name}
+                          {supplier.company_name}
                         </div>
                       ))}
                     </div>
@@ -806,12 +919,11 @@ function InventoryHub() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-black uppercase tracking-widest text-[#57534E] mb-2">Current Stock</label>
-                    <div className="w-full px-4 py-3 bg-[#EFE9DF] border border-[#E7E5E4] rounded-xl text-sm font-black text-[#57534E] flex items-center gap-2 cursor-not-allowed">
-                      <Box size={16} /> 
-                      {isAddModalOpen ? "0 (Default)" : editingProduct?.stock}
-                    </div>
-                    <p className="text-[10px] font-bold text-[#D96B5E] mt-1 italic">*Stock levels are strictly updated via Receiving or POS.</p>
+                    <label className="block text-xs font-black uppercase tracking-widest text-[#1A1A1A] mb-2">Current Stock</label>
+                    <input 
+                      type="number" required name="stock" value={formData.stock} onChange={handleInputChange} min="0"
+                      className="w-full px-4 py-3 bg-[#FAF7F2] border border-[#E7E5E4] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A1A1A] transition-all text-sm font-black text-[#1A1A1A]"
+                    />
                   </div>
                 </div>
               </form>
@@ -881,6 +993,178 @@ function InventoryHub() {
               </div>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* --- ARCHIVED PRODUCTS MODAL --- */}
+      {isArchivedModalOpen && (
+        <div className={`fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#1A1A1A]/40 backdrop-blur-sm ${archivedModalClosing ? 'animate-backdrop-out' : 'animate-backdrop-in'}`}>
+          <div className={`bg-[#FFFFFF] w-full max-w-3xl rounded-3xl shadow-2xl flex flex-col max-h-[85vh] ${archivedModalClosing ? 'animate-modal-out' : 'animate-modal-in'}`}>
+            
+            <div className="p-6 border-b border-[#E7E5E4] bg-[#FAF7F2] rounded-t-3xl flex items-center justify-between shrink-0">
+              <div>
+                <h2 className="text-xl font-black text-[#1A1A1A]">Archived Products</h2>
+                <p className="text-xs text-[#57534E] font-medium mt-1">Manage permanently deleted or restored items</p>
+              </div>
+              <button onClick={closeArchivedModal} className="text-[#57534E] hover:text-[#1A1A1A] p-2 bg-transparent rounded-full hover:bg-[#EFE9DF] transition-all cursor-pointer">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto custom-scrollbar overscroll-contain p-6">
+              {archivedLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <div className="w-8 h-8 border-4 border-[#E7E5E4] border-t-[#1A1A1A] rounded-full animate-spin"></div>
+                </div>
+              ) : archivedProducts.length === 0 ? (
+                <div className="py-16 text-center">
+                  <ArchiveRestore size={48} className="mx-auto text-[#A8A29E] mb-4" />
+                  <p className="text-[#57534E] font-bold text-lg">No archived products</p>
+                  <p className="text-[#A8A29E] text-sm mt-1">Archived items will appear here.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <colgroup>
+                      <col className="w-[20%]" />
+                      <col className="w-[35%]" />
+                      <col className="w-[15%]" />
+                      <col className="w-[15%]" />
+                      <col className="w-[15%]" />
+                    </colgroup>
+                    <thead>
+                      <tr className="border-b border-[#E7E5E4]">
+                        <th className="py-3 px-4 text-[10px] font-black uppercase tracking-[0.2em] text-[#57534E]">SKU</th>
+                        <th className="py-3 px-4 text-[10px] font-black uppercase tracking-[0.2em] text-[#57534E]">Product</th>
+                        <th className="py-3 px-4 text-[10px] font-black uppercase tracking-[0.2em] text-[#57534E]">Cost</th>
+                        <th className="py-3 px-4 text-[10px] font-black uppercase tracking-[0.2em] text-[#57534E]">Stock</th>
+                        <th className="py-3 px-4 text-[10px] font-black uppercase tracking-[0.2em] text-[#57534E] text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#E7E5E4]">
+                      {archivedProducts.map(p => (
+                        <tr key={p.id} className="hover:bg-[#FAF7F2]/50 transition-colors">
+                          <td className="py-4 px-4">
+                            <span className="font-mono text-xs font-bold text-[#57534E] bg-[#EFE9DF] px-2 py-1 rounded border border-[#E7E5E4]">{p.sku}</span>
+                          </td>
+                          <td className="py-4 px-4">
+                            <span className="font-bold text-[#1A1A1A]">{p.name}</span>
+                            <span className="text-xs text-[#57534E] block">{p.category_name}</span>
+                          </td>
+                          <td className="py-4 px-4 text-sm font-bold text-[#1A1A1A]">₱{p.cost_price}</td>
+                          <td className="py-4 px-4">
+                            <span className="text-sm font-black text-[#D96B5E]">{p.stock}</span>
+                          </td>
+                          <td className="py-4 px-4 text-right">
+                            <div className="flex justify-end gap-2">
+                              <button
+                                onClick={() => handleUnarchive(p.id)}
+                                className="px-3 py-2 bg-[#C3ECE3]/40 border border-[#C3ECE3] text-[#7BB8A7] rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-[#C3ECE3]/60 transition-all cursor-pointer flex items-center gap-1"
+                              >
+                                <ArchiveRestore size={14} /> Restore
+                              </button>
+                              <button
+                                onClick={() => setPermDeleteTarget(p.id)}
+                                className="px-3 py-2 bg-[#FAD2CB]/40 border border-[#FAD2CB] text-[#D96B5E] rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-[#FAD2CB]/60 transition-all cursor-pointer flex items-center gap-1"
+                              >
+                                <Trash2 size={14} /> Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-[#E7E5E4] bg-[#FAF7F2] rounded-b-3xl flex justify-end shrink-0">
+              <button onClick={closeArchivedModal} className="px-6 py-2.5 bg-[#FFFFFF] border border-[#E7E5E4] text-[#1A1A1A] rounded-xl font-black uppercase text-xs tracking-widest shadow-sm hover:bg-[#EFE9DF] transition-colors cursor-pointer">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- PERMANENT DELETE CONFIRMATION --- */}
+      {permDeleteTarget && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-[#1A1A1A]/40 backdrop-blur-sm animate-backdrop-in">
+          <div className="bg-[#FFFFFF] rounded-[2rem] w-full max-w-sm p-8 pt-16 shadow-2xl flex flex-col items-center text-center relative overflow-hidden animate-modal-in">
+            <div className="absolute top-0 left-0 w-full h-24 z-0 bg-[#D96B5E]" />
+            <div className="absolute -top-12 -right-8 w-36 h-36 rounded-full bg-[#FFFFFF]/20 z-10 pointer-events-none" />
+
+            <div className="relative z-20 flex flex-col items-center mt-2 w-full">
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center mb-6 border-[6px] shadow-sm bg-[#FFFFFF] border-[#FAD2CB] text-[#D96B5E]">
+                <AlertCircle size={44} strokeWidth={2.5} />
+              </div>
+
+              <h2 className="text-2xl sm:text-3xl font-black text-[#1A1A1A] uppercase tracking-tight mb-3 leading-none">
+                Delete Permanently?
+              </h2>
+              <p className="text-sm font-medium text-[#57534E] mb-8 leading-relaxed">
+                This action cannot be undone. All transaction history linked to this product will be permanently removed.
+              </p>
+
+              <div className="w-full flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPermDeleteTarget(null)}
+                  className="w-full px-4 py-3.5 rounded-xl font-black uppercase tracking-widest text-[10px] sm:text-xs shadow-sm transition-all hover:bg-[#EFE9DF] bg-[#FAF7F2] border border-[#E7E5E4] text-[#1A1A1A] cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePermanentDelete}
+                  className="w-full flex justify-center items-center gap-1.5 px-4 py-3.5 rounded-xl font-black uppercase tracking-widest text-[10px] sm:text-xs shadow-md transition-all hover:scale-[1.02] active:scale-95 bg-[#D96B5E] hover:bg-[#C45A4D] text-[#FFFFFF] cursor-pointer"
+                >
+                  <Trash2 size={16} /> Delete Forever
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- SIGNOUT CONFIRMATION --- */}
+      {signoutConfirm && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-[#1A1A1A]/40 backdrop-blur-sm animate-backdrop-in">
+          <div className="bg-[#FFFFFF] rounded-[2rem] w-full max-w-sm p-8 pt-16 shadow-2xl flex flex-col items-center text-center relative overflow-hidden animate-modal-in">
+            <div className="absolute top-0 left-0 w-full h-24 z-0 bg-[#1A1A1A]" />
+            <div className="absolute -top-12 -right-8 w-36 h-36 rounded-full bg-[#FFFFFF]/10 z-10 pointer-events-none" />
+
+            <div className="relative z-20 flex flex-col items-center mt-2 w-full">
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center mb-6 border-[6px] shadow-sm bg-[#FFFFFF] border-[#E7E5E4] text-[#1A1A1A]">
+                <LogOut size={44} strokeWidth={2.5} />
+              </div>
+
+              <h2 className="text-2xl sm:text-3xl font-black text-[#1A1A1A] uppercase tracking-tight mb-3 leading-none">
+                Sign Out?
+              </h2>
+              <p className="text-sm font-medium text-[#57534E] mb-8 leading-relaxed">
+                Are you sure you want to sign out? You will need to log in again to access the dashboard.
+              </p>
+
+              <div className="w-full flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSignoutConfirm(false)}
+                  className="w-full px-4 py-3.5 rounded-xl font-black uppercase tracking-widest text-[10px] sm:text-xs shadow-sm transition-all hover:bg-[#EFE9DF] bg-[#FAF7F2] border border-[#E7E5E4] text-[#1A1A1A] cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { localStorage.removeItem('user'); navigate('/'); }}
+                  className="w-full flex justify-center items-center gap-1.5 px-4 py-3.5 rounded-xl font-black uppercase tracking-widest text-[10px] sm:text-xs shadow-md transition-all hover:scale-[1.02] active:scale-95 bg-[#1A1A1A] hover:bg-[#57534E] text-[#FFFFFF] cursor-pointer"
+                >
+                  <LogOut size={16} /> Sign Out
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

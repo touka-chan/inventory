@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { api } from "../services/api";
 import {
   ArrowRight,
   Mail,
@@ -73,21 +74,21 @@ function LoginPage() {
       setIsLoading(false);
       return;
     }
-    if (password.length < 6) {
-      showToast("Password must be at least 6 characters.", "error");
+    if (password.length < 1) {
+      showToast("Please enter your password.", "error");
       setIsLoading(false);
       return;
     }
 
-    // Mock successful authentication
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const user = await api.login({ email: cleanEmail, password });
+      localStorage.setItem('optistock_user', JSON.stringify(user));
       showToast("Authentication successful! Redirecting...", "success");
-      
-      setTimeout(() => {
-        navigate('/inventory-hub');
-      }, 1000);
-    }, 1500);
+      setTimeout(() => navigate('/inventory-hub'), 1000);
+    } catch (err) {
+      showToast(err.message, "error");
+      setIsLoading(false);
+    }
   };
 
   const handleCloseModal = () => {
@@ -151,7 +152,7 @@ function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label htmlFor="email" className="block text-sm font-bold text-[#1A1A1A] mb-2">
-                Role name
+                Role Email
               </label>
               <div className="relative group">
                 <Mail className={`absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 transition-colors z-10 ${emailFocused ? 'text-[#1A1A1A]' : 'text-[#A8A29E]'}`} />

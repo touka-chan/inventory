@@ -1,5 +1,5 @@
-import { useState, useMemo, useRef, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import {
   PackageSearch,
   Box,
@@ -18,63 +18,14 @@ import {
   User,
   Settings,
   ChevronDown,
-  Info
+  Info,
+  LogOut,
+  ArchiveRestore
 } from "lucide-react";
-
-// Mock Notifications Data
-const initialNotifications = [
-  { 
-    id: "N001", 
-    type: "stock_alert", 
-    title: "Critical Low Stock", 
-    message: "ErgoGrip Mechanical Keyboard (SKU-8832) is down to 20 units, below the reorder level of 30.", 
-    timestamp: "10 minutes ago", 
-    isRead: false 
-  },
-  { 
-    id: "N002", 
-    type: "sale", 
-    title: "POS Transaction Completed", 
-    message: "Receipt #10492 generated. Total: ₱12,840. Cashier: Juan (EMP-042).", 
-    timestamp: "35 minutes ago", 
-    isRead: false 
-  },
-  { 
-    id: "N003", 
-    type: "stock_log", 
-    title: "Stock Adjustment Recorded", 
-    message: "Successfully logged +15 units for TitanX Gaming Mouse. Adjusted by Admin (AD).", 
-    timestamp: "2 hours ago", 
-    isRead: false 
-  },
-  { 
-    id: "N004", 
-    type: "system", 
-    title: "System Maintenance Complete", 
-    message: "OptiStock Intelligence Layer v3.5 successfully deployed. All nodes and POS terminals are synced.", 
-    timestamp: "1 day ago", 
-    isRead: true 
-  },
-  { 
-    id: "N005", 
-    type: "user", 
-    title: "New User Registration", 
-    message: "Store Manager profile created for Maria Santos (EMP-014).", 
-    timestamp: "2 days ago", 
-    isRead: true 
-  },
-  { 
-    id: "N006", 
-    type: "stock_alert", 
-    title: "Out of Stock Warning", 
-    message: "Old Gen Phone Cases (SKU-7731) inventory has reached 0. Immediate restock required.", 
-    timestamp: "3 days ago", 
-    isRead: true 
-  }
-];
+import { api } from "../services/api";
 
 function Notifications() {
-  const [notifications, setNotifications] = useState(initialNotifications);
+  const [notifications, setNotifications] = useState([]);
   
   // UI & Filter States
   const [searchQuery, setSearchQuery] = useState("");
@@ -86,6 +37,7 @@ function Notifications() {
 
   const filterRef = useRef(null);
   const notifRef = useRef(null);
+  const profileRef = useRef(null);
 
   // Modal & Animation States
   const [isClosing, setIsClosing] = useState(false);
@@ -96,14 +48,38 @@ function Notifications() {
   const toastTimeout = useRef(null);
   const toastExitTimeout = useRef(null);
 
+  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const [isArchivedModalOpen, setIsArchivedModalOpen] = useState(false);
+  const [archivedModalClosing, setArchivedModalClosing] = useState(false);
+  const [archivedProducts, setArchivedProducts] = useState([]);
+  const [archivedLoading, setArchivedLoading] = useState(false);
+  const [permDeleteTarget, setPermDeleteTarget] = useState(null);
+  const [signoutConfirm, setSignoutConfirm] = useState(false);
+  const navigate = useNavigate();
+  const currentUser = useMemo(() => {
+    try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
+  }, []);
+
   // Derived Stats
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const unreadCount = notifications.filter(n => !n.is_read).length;
+
+  const loadData = useCallback(async () => {
+    try {
+      const res = await api.getNotifications();
+      setNotifications(res.results || res);
+    } catch (err) {
+      console.error('Failed to load notifications:', err);
+    }
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
 
   // Handle click outside for custom dropdowns
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (filterRef.current && !filterRef.current.contains(event.target)) setIsFilterDropdownOpen(false);
       if (notifRef.current && !notifRef.current.contains(event.target)) setIsNotifDropdownOpen(false);
+      if (profileRef.current && !profileRef.current.contains(event.target)) setIsProfileDropdownOpen(false);
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -116,7 +92,7 @@ function Notifications() {
                             notification.message.toLowerCase().includes(searchQuery.toLowerCase());
       
       let matchesFilter = true;
-      if (filterType === "Unread") matchesFilter = !notification.isRead;
+      if (filterType === "Unread") matchesFilter = !notification.is_read;
       else if (filterType === "Sales") matchesFilter = notification.type === "sale";
       else if (filterType === "Stock Alerts") matchesFilter = notification.type === "stock_alert";
       else if (filterType === "Stock Logs") matchesFilter = notification.type === "stock_log";
@@ -155,20 +131,35 @@ function Notifications() {
   };
 
   // Action Handlers
-  const markAsRead = (id) => {
-    setNotifications(notifications.map(n => 
-      n.id === id ? { ...n, isRead: true } : n
-    ));
+  const markAsRead = async (id) => {
+    try {
+      await api.markNotificationRead(id);
+      setNotifications(notifications.map(n => 
+        n.id === id ? { ...n, is_read: true } : n
+      ));
+    } catch (err) {
+      console.error('Failed to mark as read:', err);
+    }
   };
 
-  const markAllAsRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, isRead: true })));
-    showToast("All notifications marked as read.", "success");
+  const markAllAsRead = async () => {
+    try {
+      await api.markAllNotificationsRead();
+      setNotifications(notifications.map(n => ({ ...n, is_read: true })));
+      showToast("All notifications marked as read.", "success");
+    } catch (err) {
+      console.error('Failed to mark all as read:', err);
+    }
   };
 
-  const deleteNotification = (id) => {
-    setNotifications(notifications.filter(n => n.id !== id));
-    showToast("Notification deleted.", "success");
+  const deleteNotification = async (id) => {
+    try {
+      await api.deleteNotification(id);
+      setNotifications(notifications.filter(n => n.id !== id));
+      showToast("Notification deleted.", "success");
+    } catch (err) {
+      console.error('Failed to delete notification:', err);
+    }
   };
 
   const openClearAllModal = () => {
@@ -187,10 +178,59 @@ function Notifications() {
 
   const executeConfirmAction = () => {
     if (confirmModalConfig.action === 'clearAll') {
-      setNotifications([]);
-      showToast("All notifications have been cleared.", "success");
+      clearAllNotifications();
     }
     closeConfirmModal();
+  };
+
+  const clearAllNotifications = async () => {
+    try {
+      await api.clearAllNotifications();
+      setNotifications([]);
+      showToast("All notifications have been cleared.", "success");
+    } catch (err) {
+      console.error('Failed to clear notifications:', err);
+    }
+  };
+
+  const openArchivedModal = async () => {
+    setIsArchivedModalOpen(true);
+    setArchivedLoading(true);
+    try {
+      const res = await api.getArchivedProducts();
+      setArchivedProducts(res.results || res);
+    } catch (err) {
+      // fail silently - toast not always available
+    }
+    setArchivedLoading(false);
+  };
+
+  const closeArchivedModal = () => {
+    setArchivedModalClosing(true);
+    setTimeout(() => {
+      setIsArchivedModalOpen(false);
+      setArchivedModalClosing(false);
+    }, 300);
+  };
+
+  const handleUnarchive = async (id) => {
+    try {
+      await api.unarchiveProduct(id);
+      setArchivedProducts(archivedProducts.filter(p => p.id !== id));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handlePermanentDelete = async () => {
+    if (!permDeleteTarget) return;
+    try {
+      await api.permanentDeleteProduct(permDeleteTarget);
+      setArchivedProducts(archivedProducts.filter(p => p.id !== permDeleteTarget));
+      setPermDeleteTarget(null);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   // Dedicated Styling per Type
@@ -310,7 +350,7 @@ function Notifications() {
                       return (
                         <div 
                           key={notif.id} 
-                          className={`p-4 border-b border-[#E7E5E4] last:border-b-0 hover:bg-[#FAF7F2] transition-colors cursor-pointer flex items-start gap-3 ${notif.isRead ? 'opacity-70 bg-[#FAF7F2]/50' : 'bg-[#FFFFFF]'}`}
+                          className={`p-4 border-b border-[#E7E5E4] last:border-b-0 hover:bg-[#FAF7F2] transition-colors cursor-pointer flex items-start gap-3 ${notif.is_read ? 'opacity-70 bg-[#FAF7F2]/50' : 'bg-[#FFFFFF]'}`}
                         >
                           <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${prevStyles.bg}`}>
                             {prevStyles.icon}
@@ -318,10 +358,10 @@ function Notifications() {
                           
                           <div className="flex flex-col flex-1 pr-2">
                             <span className="text-sm font-bold text-[#1A1A1A] leading-tight">{notif.title}</span>
-                            <span className="text-[10px] text-[#A8A29E] font-black mt-1.5 uppercase tracking-wider">{notif.timestamp}</span>
+                            <span className="text-[10px] text-[#A8A29E] font-black mt-1.5 uppercase tracking-wider">{notif.created_at ? new Date(notif.created_at).toLocaleString() : ''}</span>
                           </div>
                           
-                          {!notif.isRead && (
+                          {!notif.is_read && (
                             <div className="w-2 h-2 rounded-full bg-[#D96B5E] shrink-0 mt-2"></div>
                           )}
                         </div>
@@ -346,9 +386,35 @@ function Notifications() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 pl-4 border-l border-[#E7E5E4]">
-                <div className="w-10 h-10 rounded-full bg-[#1A1A1A] flex items-center justify-center font-black text-[#FFFFFF] text-sm shadow-sm">
+              <div className="flex items-center gap-3 pl-4 border-l border-[#E7E5E4] relative" ref={profileRef}>
+                <button
+                  onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
+                  className="w-10 h-10 rounded-full bg-[#1A1A1A] flex items-center justify-center font-black text-[#FFFFFF] text-sm shadow-sm hover:bg-[#57534E] transition-all cursor-pointer"
+                >
                   AD
+                </button>
+
+                <div className={`absolute top-full right-0 mt-3 w-52 bg-[#FFFFFF] border border-[#E7E5E4] rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden transition-all duration-200 origin-top-right ${isProfileDropdownOpen ? 'opacity-100 scale-100 visible' : 'opacity-0 scale-95 invisible'}`}>
+                  <div className="p-3 border-b border-[#E7E5E4] bg-[#FAF7F2]">
+                    <p className="text-xs font-bold text-[#57534E]">Signed in as</p>
+                    <p className="text-sm font-black text-[#1A1A1A] truncate">{currentUser.name || 'Admin'}</p>
+                  </div>
+
+                  <button
+                    onClick={() => { setIsProfileDropdownOpen(false); openArchivedModal(); }}
+                    className="flex items-center gap-3 px-4 py-3.5 text-sm font-bold text-[#1A1A1A] hover:bg-[#FAF7F2] transition-all border-b border-[#E7E5E4] text-left cursor-pointer"
+                  >
+                    <ArchiveRestore size={18} className="text-[#57534E]" />
+                    Archived Products
+                  </button>
+
+                  <button
+                    onClick={() => { setIsProfileDropdownOpen(false); setSignoutConfirm(true); }}
+                    className="flex items-center gap-3 px-4 py-3.5 text-sm font-bold text-[#D96B5E] hover:bg-[#FAD2CB]/20 transition-all text-left cursor-pointer"
+                  >
+                    <LogOut size={18} />
+                    Sign Out
+                  </button>
                 </div>
               </div>
             </div>
@@ -443,13 +509,13 @@ function Notifications() {
                   <div 
                     key={notification.id} 
                     className={`group relative flex gap-4 p-5 rounded-2xl border transition-all duration-200 ${
-                      notification.isRead 
+                      notification.is_read 
                         ? "bg-[#FFFFFF] border-[#E7E5E4] opacity-80 hover:opacity-100" 
                         : "bg-[#FFFFFF] border-[#1A1A1A] shadow-md"
                     }`}
                   >
                     {/* Unread Indicator Dot */}
-                    {!notification.isRead && (
+                    {!notification.is_read && (
                       <div className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 bg-[#D96B5E] rounded-full border-2 border-[#FAF7F2]"></div>
                     )}
 
@@ -461,11 +527,11 @@ function Notifications() {
                     {/* Content */}
                     <div className="flex-1 min-w-0 py-0.5">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1">
-                        <h3 className={`font-black truncate ${notification.isRead ? "text-[#57534E]" : "text-[#1A1A1A]"}`}>
+                        <h3 className={`font-black truncate ${notification.is_read ? "text-[#57534E]" : "text-[#1A1A1A]"}`}>
                           {notification.title}
                         </h3>
                         <span className="text-[10px] font-bold uppercase tracking-wider text-[#A8A29E] shrink-0">
-                          {notification.timestamp}
+                          {notification.created_at ? new Date(notification.created_at).toLocaleString() : ''}
                         </span>
                       </div>
                       <p className="text-sm font-medium text-[#57534E] leading-relaxed">
@@ -475,7 +541,7 @@ function Notifications() {
 
                     {/* Quick Actions */}
                     <div className="flex flex-col sm:flex-row items-center gap-2 shrink-0 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
-                      {!notification.isRead && (
+                      {!notification.is_read && (
                         <button 
                           onClick={() => markAsRead(notification.id)}
                           className="p-2 text-[#7BB8A7] bg-[#C3ECE3]/20 hover:bg-[#C3ECE3]/50 rounded-lg transition-colors border border-transparent hover:border-[#C3ECE3] cursor-pointer"
@@ -586,6 +652,178 @@ function Notifications() {
           </div>
           <div className="h-1 bg-[#333333] w-full">
             <div className={`h-full animate-progress-bar ${toast.type === "error" ? "bg-[#D96B5E]" : "bg-[#7BB8A7]"}`}></div>
+          </div>
+        </div>
+      )}
+
+      {/* --- ARCHIVED PRODUCTS MODAL --- */}
+      {isArchivedModalOpen && (
+        <div className={`fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#1A1A1A]/40 backdrop-blur-sm ${archivedModalClosing ? 'animate-backdrop-out' : 'animate-backdrop-in'}`}>
+          <div className={`bg-[#FFFFFF] w-full max-w-3xl rounded-3xl shadow-2xl flex flex-col max-h-[85vh] ${archivedModalClosing ? 'animate-modal-out' : 'animate-modal-in'}`}>
+            
+            <div className="p-6 border-b border-[#E7E5E4] bg-[#FAF7F2] rounded-t-3xl flex items-center justify-between shrink-0">
+              <div>
+                <h2 className="text-xl font-black text-[#1A1A1A]">Archived Products</h2>
+                <p className="text-xs text-[#57534E] font-medium mt-1">Manage permanently deleted or restored items</p>
+              </div>
+              <button onClick={closeArchivedModal} className="text-[#57534E] hover:text-[#1A1A1A] p-2 bg-transparent rounded-full hover:bg-[#EFE9DF] transition-all cursor-pointer">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto custom-scrollbar overscroll-contain p-6">
+              {archivedLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <div className="w-8 h-8 border-4 border-[#E7E5E4] border-t-[#1A1A1A] rounded-full animate-spin"></div>
+                </div>
+              ) : archivedProducts.length === 0 ? (
+                <div className="py-16 text-center">
+                  <ArchiveRestore size={48} className="mx-auto text-[#A8A29E] mb-4" />
+                  <p className="text-[#57534E] font-bold text-lg">No archived products</p>
+                  <p className="text-[#A8A29E] text-sm mt-1">Archived items will appear here.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <colgroup>
+                      <col className="w-[20%]" />
+                      <col className="w-[35%]" />
+                      <col className="w-[15%]" />
+                      <col className="w-[15%]" />
+                      <col className="w-[15%]" />
+                    </colgroup>
+                    <thead>
+                      <tr className="border-b border-[#E7E5E4]">
+                        <th className="py-3 px-4 text-[10px] font-black uppercase tracking-[0.2em] text-[#57534E]">SKU</th>
+                        <th className="py-3 px-4 text-[10px] font-black uppercase tracking-[0.2em] text-[#57534E]">Product</th>
+                        <th className="py-3 px-4 text-[10px] font-black uppercase tracking-[0.2em] text-[#57534E]">Cost</th>
+                        <th className="py-3 px-4 text-[10px] font-black uppercase tracking-[0.2em] text-[#57534E]">Stock</th>
+                        <th className="py-3 px-4 text-[10px] font-black uppercase tracking-[0.2em] text-[#57534E] text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#E7E5E4]">
+                      {archivedProducts.map(p => (
+                        <tr key={p.id} className="hover:bg-[#FAF7F2]/50 transition-colors">
+                          <td className="py-4 px-4">
+                            <span className="font-mono text-xs font-bold text-[#57534E] bg-[#EFE9DF] px-2 py-1 rounded border border-[#E7E5E4]">{p.sku}</span>
+                          </td>
+                          <td className="py-4 px-4">
+                            <span className="font-bold text-[#1A1A1A]">{p.name}</span>
+                            <span className="text-xs text-[#57534E] block">{p.category_name}</span>
+                          </td>
+                          <td className="py-4 px-4 text-sm font-bold text-[#1A1A1A]">₱{p.cost_price}</td>
+                          <td className="py-4 px-4">
+                            <span className="text-sm font-black text-[#D96B5E]">{p.stock}</span>
+                          </td>
+                          <td className="py-4 px-4 text-right">
+                            <div className="flex justify-end gap-2">
+                              <button
+                                onClick={() => handleUnarchive(p.id)}
+                                className="px-3 py-2 bg-[#C3ECE3]/40 border border-[#C3ECE3] text-[#7BB8A7] rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-[#C3ECE3]/60 transition-all cursor-pointer flex items-center gap-1"
+                              >
+                                <ArchiveRestore size={14} /> Restore
+                              </button>
+                              <button
+                                onClick={() => setPermDeleteTarget(p.id)}
+                                className="px-3 py-2 bg-[#FAD2CB]/40 border border-[#FAD2CB] text-[#D96B5E] rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-[#FAD2CB]/60 transition-all cursor-pointer flex items-center gap-1"
+                              >
+                                <Trash2 size={14} /> Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-[#E7E5E4] bg-[#FAF7F2] rounded-b-3xl flex justify-end shrink-0">
+              <button onClick={closeArchivedModal} className="px-6 py-2.5 bg-[#FFFFFF] border border-[#E7E5E4] text-[#1A1A1A] rounded-xl font-black uppercase text-xs tracking-widest shadow-sm hover:bg-[#EFE9DF] transition-colors cursor-pointer">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- PERMANENT DELETE CONFIRMATION --- */}
+      {permDeleteTarget && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-[#1A1A1A]/40 backdrop-blur-sm animate-backdrop-in">
+          <div className="bg-[#FFFFFF] rounded-[2rem] w-full max-w-sm p-8 pt-16 shadow-2xl flex flex-col items-center text-center relative overflow-hidden animate-modal-in">
+            <div className="absolute top-0 left-0 w-full h-24 z-0 bg-[#D96B5E]" />
+            <div className="absolute -top-12 -right-8 w-36 h-36 rounded-full bg-[#FFFFFF]/20 z-10 pointer-events-none" />
+
+            <div className="relative z-20 flex flex-col items-center mt-2 w-full">
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center mb-6 border-[6px] shadow-sm bg-[#FFFFFF] border-[#FAD2CB] text-[#D96B5E]">
+                <AlertCircle size={44} strokeWidth={2.5} />
+              </div>
+
+              <h2 className="text-2xl sm:text-3xl font-black text-[#1A1A1A] uppercase tracking-tight mb-3 leading-none">
+                Delete Permanently?
+              </h2>
+              <p className="text-sm font-medium text-[#57534E] mb-8 leading-relaxed">
+                This action cannot be undone. All transaction history linked to this product will be permanently removed.
+              </p>
+
+              <div className="w-full flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPermDeleteTarget(null)}
+                  className="w-full px-4 py-3.5 rounded-xl font-black uppercase tracking-widest text-[10px] sm:text-xs shadow-sm transition-all hover:bg-[#EFE9DF] bg-[#FAF7F2] border border-[#E7E5E4] text-[#1A1A1A] cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePermanentDelete}
+                  className="w-full flex justify-center items-center gap-1.5 px-4 py-3.5 rounded-xl font-black uppercase tracking-widest text-[10px] sm:text-xs shadow-md transition-all hover:scale-[1.02] active:scale-95 bg-[#D96B5E] hover:bg-[#C45A4D] text-[#FFFFFF] cursor-pointer"
+                >
+                  <Trash2 size={16} /> Delete Forever
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- SIGNOUT CONFIRMATION --- */}
+      {signoutConfirm && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-[#1A1A1A]/40 backdrop-blur-sm animate-backdrop-in">
+          <div className="bg-[#FFFFFF] rounded-[2rem] w-full max-w-sm p-8 pt-16 shadow-2xl flex flex-col items-center text-center relative overflow-hidden animate-modal-in">
+            <div className="absolute top-0 left-0 w-full h-24 z-0 bg-[#1A1A1A]" />
+            <div className="absolute -top-12 -right-8 w-36 h-36 rounded-full bg-[#FFFFFF]/10 z-10 pointer-events-none" />
+
+            <div className="relative z-20 flex flex-col items-center mt-2 w-full">
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center mb-6 border-[6px] shadow-sm bg-[#FFFFFF] border-[#E7E5E4] text-[#1A1A1A]">
+                <LogOut size={44} strokeWidth={2.5} />
+              </div>
+
+              <h2 className="text-2xl sm:text-3xl font-black text-[#1A1A1A] uppercase tracking-tight mb-3 leading-none">
+                Sign Out?
+              </h2>
+              <p className="text-sm font-medium text-[#57534E] mb-8 leading-relaxed">
+                Are you sure you want to sign out? You will need to log in again to access the dashboard.
+              </p>
+
+              <div className="w-full flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSignoutConfirm(false)}
+                  className="w-full px-4 py-3.5 rounded-xl font-black uppercase tracking-widest text-[10px] sm:text-xs shadow-sm transition-all hover:bg-[#EFE9DF] bg-[#FAF7F2] border border-[#E7E5E4] text-[#1A1A1A] cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { localStorage.removeItem('user'); navigate('/'); }}
+                  className="w-full flex justify-center items-center gap-1.5 px-4 py-3.5 rounded-xl font-black uppercase tracking-widest text-[10px] sm:text-xs shadow-md transition-all hover:scale-[1.02] active:scale-95 bg-[#1A1A1A] hover:bg-[#57534E] text-[#FFFFFF] cursor-pointer"
+                >
+                  <LogOut size={16} /> Sign Out
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
