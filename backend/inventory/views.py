@@ -6,6 +6,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from django.db.models import Sum, F, Count, Q
 
 from .models import (
     Product, Category, Supplier, User, StockLedger, Notification,
@@ -70,6 +71,20 @@ def me_view(request):
     except User.DoesNotExist:
         request.session.flush()
         return Response({'error': 'Session invalid.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def dashboard_stats_view(request):
+    active = Product.objects.filter(status='active')
+    total_active = active.count()
+    low_stock = active.filter(stock__lte=F('reorder_level')).count()
+    total_value = active.aggregate(v=Sum(F('cost_price') * F('stock')))['v'] or 0
+    return Response({
+        'total_active_items': total_active,
+        'low_stock_count': low_stock,
+        'total_inventory_value': float(total_value),
+    })
 
 
 class CategoryViewSet(viewsets.ModelViewSet):

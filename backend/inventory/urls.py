@@ -19,5 +19,6 @@ urlpatterns = [
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
     path('me/', views.me_view, name='me'),
+    path('dashboard-stats/', views.dashboard_stats_view, name='dashboard-stats'),
     path('', include(router.urls)),
 ]

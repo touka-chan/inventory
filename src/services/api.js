@@ -30,6 +30,7 @@ export const api = {
   login: (data) => request('/login/', { method: 'POST', body: JSON.stringify(data) }),
   getMe: () => request('/me/'),
   logout: () => request('/logout/', { method: 'POST' }),
+  getDashboardStats: () => request('/dashboard-stats/'),
 
   getProducts: () => request('/products/'),
   createProduct: (data) => request('/products/', { method: 'POST', body: JSON.stringify(data) }),

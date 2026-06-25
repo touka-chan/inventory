@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../services/api";
 import {
@@ -25,6 +25,9 @@ function LoginPage() {
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const navigate = useNavigate();
+
+  const [stats, setStats] = useState({ total_active_items: 0, low_stock_count: 0, total_inventory_value: 0 });
+  useEffect(() => { api.getDashboardStats().then(setStats).catch(() => {}); }, []);
 
   // States para sa Protocol Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -313,7 +316,7 @@ function LoginPage() {
                   <PackageSearch size={16} className="text-[#7BB8A7]" />
                   <div>
                     <p className="text-[9px] uppercase font-black text-[#A8A29E] tracking-wider leading-none">Active SKUs</p>
-                    <p className="text-sm font-black text-[#1A1A1A] leading-tight">12,450 Items</p>
+                    <p className="text-sm font-black text-[#1A1A1A] leading-tight">{stats.total_active_items.toLocaleString()} Items</p>
                   </div>
                 </div>
                 <div className="w-3 h-3 bg-white border-b border-r border-[#E7E5E4] transform rotate-45 -mt-1.5"></div>
@@ -364,7 +367,7 @@ function LoginPage() {
                   <AlertCircle size={16} className="text-[#D96B5E]" strokeWidth={2.5} />
                   <div>
                     <p className="text-[9px] uppercase font-black text-[#D96B5E] tracking-wider leading-none">Warning</p>
-                    <p className="text-sm font-black text-[#1A1A1A] leading-tight">3 Low Stocks</p>
+                    <p className="text-sm font-black text-[#1A1A1A] leading-tight">{stats.low_stock_count} Low Stock{stats.low_stock_count !== 1 ? 's' : ''}</p>
                   </div>
                 </div>
                 <div className="w-3 h-3 bg-white border-b border-r border-[#E7E5E4] transform rotate-45 -mt-1.5"></div>
@@ -392,7 +395,7 @@ function LoginPage() {
                   <TrendingUp size={16} className="text-[#1A1A1A]" />
                   <div>
                     <p className="text-[9px] uppercase font-black text-[#A8A29E] tracking-wider leading-none">Total Value</p>
-                    <p className="text-sm font-black text-[#1A1A1A] leading-tight">₱ 1.28M</p>
+                    <p className="text-sm font-black text-[#1A1A1A] leading-tight">₱{stats.total_inventory_value >= 1000000 ? `${(stats.total_inventory_value / 1000000).toFixed(2)}M` : stats.total_inventory_value >= 1000 ? `${(stats.total_inventory_value / 1000).toFixed(1)}K` : stats.total_inventory_value.toLocaleString()}</p>
                   </div>
                 </div>
                 <div className="w-3 h-3 bg-white border-b border-r border-[#E7E5E4] transform rotate-45 -mt-1.5"></div>
