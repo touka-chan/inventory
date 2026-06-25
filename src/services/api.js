@@ -1,8 +1,22 @@
 const BASE_URL = 'http://localhost:8000/api';
 
+function getCookie(name) {
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  return match ? decodeURIComponent(match[2]) : null;
+}
+
 async function request(endpoint, options = {}) {
+  const headers = { ...options.headers };
+  if (options.body && !(options.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
+  const csrfToken = getCookie('csrftoken');
+  if (csrfToken && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(options.method || 'GET')) {
+    headers['X-CSRFToken'] = csrfToken;
+  }
   const res = await fetch(`${BASE_URL}${endpoint}`, {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
+    headers,
+    credentials: 'include',
     ...options,
   });
   if (!res.ok) {
@@ -14,6 +28,8 @@ async function request(endpoint, options = {}) {
 
 export const api = {
   login: (data) => request('/login/', { method: 'POST', body: JSON.stringify(data) }),
+  getMe: () => request('/me/'),
+  logout: () => request('/logout/', { method: 'POST' }),
 
   getProducts: () => request('/products/'),
   createProduct: (data) => request('/products/', { method: 'POST', body: JSON.stringify(data) }),

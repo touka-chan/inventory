@@ -1,8 +1,10 @@
 from django.contrib.auth.hashers import check_password
 from django.db import transaction
 from django.db.models import F
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from rest_framework import viewsets, status
-from rest_framework.decorators import action, api_view
+from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from .models import (
@@ -22,17 +24,52 @@ from .models import (
 )
 
 
-@api_view(['POST'])
+@api_view(['GET', 'POST'])
+@permission_classes([AllowAny])
+@csrf_exempt
 def login_view(request):
+    if request.method == 'GET':
+        if 'user_id' in request.session:
+            try:
+                user = User.objects.get(id=request.session['user_id'])
+                return Response(UserSerializer(user).data)
+            except User.DoesNotExist:
+                request.session.flush()
+        return Response({'error': 'Not authenticated.'}, status=status.HTTP_401_UNAUTHORIZED)
+
     email = request.data.get('email', '').strip().lower()
     password = request.data.get('password', '')
     try:
         user = User.objects.get(email__iexact=email)
         if not check_password(password, user.password_hash):
             return Response({'error': 'Invalid email or password.'}, status=status.HTTP_401_UNAUTHORIZED)
+        request.session['user_id'] = user.id
+        request.session.save()
         return Response(UserSerializer(user).data)
     except User.DoesNotExist:
         return Response({'error': 'Invalid email or password.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@csrf_exempt
+def logout_view(request):
+    request.session.flush()
+    return Response({'status': 'logged out'})
+
+
+@api_view(['GET'])
+@ensure_csrf_cookie
+@permission_classes([AllowAny])
+def me_view(request):
+    if 'user_id' not in request.session:
+        return Response({'error': 'Not authenticated.'}, status=status.HTTP_401_UNAUTHORIZED)
+    try:
+        user = User.objects.get(id=request.session['user_id'])
+        return Response(UserSerializer(user).data)
+    except User.DoesNotExist:
+        request.session.flush()
+        return Response({'error': 'Session invalid.'}, status=status.HTTP_401_UNAUTHORIZED)
 
 
 class CategoryViewSet(viewsets.ModelViewSet):

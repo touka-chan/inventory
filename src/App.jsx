@@ -1,4 +1,6 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { api } from "./services/api";
 
 import LoginPage from "./pages/LoginPage";
 import InventoryHub from "./pages/InventoryHub";
@@ -7,15 +9,46 @@ import Categories from "./pages/Categories";
 import Suppliers from "./pages/Suppliers";
 import Notifications from "./pages/Notifications";
 
+function ProtectedRoute({ children }) {
+  const [checking, setChecking] = useState(true);
+  const [authenticated, setAuthenticated] = useState(false);
+  const location = useLocation();
+
+  useEffect(() => {
+    let cancelled = false;
+    const check = async () => {
+      try {
+        await api.getMe();
+        if (!cancelled) setAuthenticated(true);
+      } catch {
+        localStorage.removeItem('user');
+        if (!cancelled) setAuthenticated(false);
+      }
+      if (!cancelled) setChecking(false);
+    };
+    if (localStorage.getItem('user')) {
+      check();
+    } else {
+      setChecking(false);
+      setAuthenticated(false);
+    }
+    return () => { cancelled = true; };
+  }, [location.pathname]);
+
+  if (checking) return null;
+  if (!authenticated) return <Navigate to="/" replace />;
+  return children;
+}
+
 function App() {
   return (
     <Routes>
       <Route path="/" element={<LoginPage />} />
-      <Route path="/inventory-hub" element={<InventoryHub />} />
-      <Route path="/stock-adjustments" element={<StockAdjustments />} />
-      <Route path="/categories" element={<Categories />} />
-      <Route path="/suppliers" element={<Suppliers />} />
-      <Route path="/notifications" element={<Notifications />} />
+      <Route path="/inventory-hub" element={<ProtectedRoute><InventoryHub /></ProtectedRoute>} />
+      <Route path="/stock-adjustments" element={<ProtectedRoute><StockAdjustments /></ProtectedRoute>} />
+      <Route path="/categories" element={<ProtectedRoute><Categories /></ProtectedRoute>} />
+      <Route path="/suppliers" element={<ProtectedRoute><Suppliers /></ProtectedRoute>} />
+      <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

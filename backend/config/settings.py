@@ -59,6 +59,8 @@ CORS_ALLOWED_ORIGINS = config(
 
 CORS_ALLOW_CREDENTIALS = True
 
+SESSION_COOKIE_AGE = 36000  # 10 hours
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',

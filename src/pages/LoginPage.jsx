@@ -82,7 +82,7 @@ function LoginPage() {
 
     try {
       const user = await api.login({ email: cleanEmail, password });
-      localStorage.setItem('optistock_user', JSON.stringify(user));
+      localStorage.setItem('user', JSON.stringify(user));
       showToast("Authentication successful! Redirecting...", "success");
       setTimeout(() => navigate('/inventory-hub'), 1000);
     } catch (err) {

@@ -1,11 +1,8 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../services/api";
+import Sidebar from "../components/Sidebar";
 import {
-  PackageSearch,
-  Box,
-  ClipboardList,
-  Tags,
   Search,
   Bell,
   Plus,
@@ -297,35 +294,7 @@ function Suppliers() {
       {/* Background Subtle Overlays */}
       <div className="absolute inset-0 z-0 opacity-[0.03] bg-[radial-gradient(#1A1A1A_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none"></div>
 
-      {/* SIDEBAR */}
-      <aside className="w-64 bg-[#FAF7F2] border-r border-[#E7E5E4] hidden lg:flex flex-col relative z-20 shrink-0 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
-        <div className="p-6 flex items-center gap-3 mb-8">
-          <div className="w-10 h-10 bg-[#D96B5E] rounded-xl flex items-center justify-center shadow-sm">
-            <PackageSearch size={20} className="text-[#FFFFFF]" />
-          </div>
-          <span className="text-[#1A1A1A] font-black text-xl tracking-tight">OptiStock</span>
-        </div>
-
-        <nav className="flex-1 px-4 space-y-2">
-          <Link to="/inventory-hub" className="flex items-center gap-3 px-4 py-3 text-[#57534E] hover:bg-[#EFE9DF] rounded-xl font-bold transition-colors cursor-pointer">
-            <Box size={18} /> Inventory Hub
-          </Link>
-          <Link to="/stock-adjustments" className="flex items-center gap-3 px-4 py-3 text-[#57534E] hover:bg-[#EFE9DF] rounded-xl font-bold transition-colors cursor-pointer">
-            <ClipboardList size={18} /> Stock Adjustments
-          </Link>
-          <Link to="/categories" className="flex items-center gap-3 px-4 py-3 text-[#57534E] hover:bg-[#EFE9DF] rounded-xl font-bold transition-colors cursor-pointer">
-            <Tags size={18} /> Categories
-          </Link>
-          
-          <Link to="/suppliers" className="flex items-center gap-3 px-4 py-3 bg-[#1A1A1A] text-[#FFFFFF] rounded-xl font-bold shadow-md cursor-pointer">
-            <Truck size={18} className="text-[#FCD59E]" /> Suppliers
-          </Link>
-        </nav>
-        
-        <div className="p-6 border-t border-[#E7E5E4]">
-          <p className="text-[10px] font-black uppercase tracking-widest text-[#57534E]">System v3.5</p>
-        </div>
-      </aside>
+      <Sidebar />
 
       {/* MAIN CONTENT */}
       <main className="flex-1 flex flex-col h-screen overflow-y-auto relative z-10">
@@ -976,7 +945,7 @@ function Suppliers() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => { localStorage.removeItem('user'); navigate('/'); }}
+                    onClick={async () => { try { await api.logout(); } catch {} localStorage.removeItem('user'); navigate('/'); }}
                     className="w-full flex justify-center items-center gap-1.5 px-4 py-3.5 rounded-xl font-black uppercase tracking-widest text-[10px] sm:text-xs shadow-md transition-all hover:scale-[1.02] active:scale-95 bg-[#1A1A1A] hover:bg-[#57534E] text-[#FFFFFF] cursor-pointer"
                   >
                     <LogOut size={16} /> Sign Out
