@@ -20,5 +20,6 @@ urlpatterns = [
     path('logout/', views.logout_view, name='logout'),
     path('me/', views.me_view, name='me'),
     path('dashboard-stats/', views.dashboard_stats_view, name='dashboard-stats'),
+    path('integration/pos-sales/', views.integration_pos_sales_view, name='integration-pos-sales'),
     path('', include(router.urls)),
 ]

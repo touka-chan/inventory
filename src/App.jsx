@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { api } from "./services/api";
+import { wsManager } from "./services/websocket";
+import { WebSocketProvider } from "./context/WebSocketProvider";
 
 import LoginPage from "./pages/LoginPage";
 import InventoryHub from "./pages/InventoryHub";
@@ -19,10 +21,14 @@ function ProtectedRoute({ children }) {
     const check = async () => {
       try {
         await api.getMe();
-        if (!cancelled) setAuthenticated(true);
+        if (!cancelled) {
+          setAuthenticated(true);
+          wsManager.connect();
+        }
       } catch {
         localStorage.removeItem('user');
         if (!cancelled) setAuthenticated(false);
+        wsManager.disconnect();
       }
       if (!cancelled) setChecking(false);
     };
@@ -31,6 +37,7 @@ function ProtectedRoute({ children }) {
     } else {
       setChecking(false);
       setAuthenticated(false);
+      wsManager.disconnect();
     }
     return () => { cancelled = true; };
   }, [location.pathname]);
@@ -42,15 +49,17 @@ function ProtectedRoute({ children }) {
 
 function App() {
   return (
-    <Routes>
-      <Route path="/" element={<LoginPage />} />
-      <Route path="/inventory-hub" element={<ProtectedRoute><InventoryHub /></ProtectedRoute>} />
-      <Route path="/stock-adjustments" element={<ProtectedRoute><StockAdjustments /></ProtectedRoute>} />
-      <Route path="/categories" element={<ProtectedRoute><Categories /></ProtectedRoute>} />
-      <Route path="/suppliers" element={<ProtectedRoute><Suppliers /></ProtectedRoute>} />
-      <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <WebSocketProvider>
+      <Routes>
+        <Route path="/" element={<LoginPage />} />
+        <Route path="/inventory-hub" element={<ProtectedRoute><InventoryHub /></ProtectedRoute>} />
+        <Route path="/stock-adjustments" element={<ProtectedRoute><StockAdjustments /></ProtectedRoute>} />
+        <Route path="/categories" element={<ProtectedRoute><Categories /></ProtectedRoute>} />
+        <Route path="/suppliers" element={<ProtectedRoute><Suppliers /></ProtectedRoute>} />
+        <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </WebSocketProvider>
   );
 }
 

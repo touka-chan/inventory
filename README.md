@@ -1,16 +1,104 @@
-# React + Vite
+# Module 1 — Inventory Hub
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**Group 1 — Inventory Management System**
 
-Currently, two official plugins are available:
+## Overview
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Manages products, categories, suppliers, stock adjustments, and notifications. Exposes a REST API consumed by the POS (Module 2) and Dashboard (Module 3).
 
-## React Compiler
+**Tech Stack:** Django 5.1.7 + DRF 3.15.2 + Channels 4.3.2 + React 19 + Vite
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Ports
 
-## Expanding the ESLint configuration
+| Service | Port |
+|---------|------|
+| Django Backend (ASGI) | 8000 |
+| Vite Frontend | 5173 |
+| WebSocket | ws://localhost:8000/ws/events/ |
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Database
+
+- **Name:** `optistock_db`
+- **Host:** localhost
+- **User:** root
+- **Password:** `jane2005`
+
+### Setup
+
+```bash
+mysql -u root -p'jane2005' < optistock_complete.sql
+```
+
+## Running
+
+### Backend
+```bash
+cd backend
+pip install -r requirements.txt
+python3 -m uvicorn config.asgi:application --reload --host 0.0.0.0 --port 8000
+```
+
+### Frontend
+```bash
+cd OptiStock
+npm install
+npm run dev
+```
+
+## API Endpoints
+
+### Inventory CRUD
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET/POST | `/api/products/` | List / Create products |
+| GET/PUT/DELETE | `/api/products/{id}/` | Get / Update / Delete product |
+| GET | `/api/products/dropdown/` | Lightweight product list (for POS) |
+| GET | `/api/products/archived/` | Archived products |
+| POST | `/api/products/deduct-stock/` | Deduct stock (called by POS) |
+| GET/POST | `/api/categories/` | List / Create categories |
+| GET/PUT/DELETE | `/api/categories/{id}/` | Get / Update / Delete category |
+| GET/POST | `/api/suppliers/` | List / Create suppliers |
+| GET/PUT/DELETE | `/api/suppliers/{id}/` | Get / Update / Delete supplier |
+| GET/POST | `/api/stock-ledger/` | List / Create stock entries |
+| GET/POST | `/api/notifications/` | List / Create notifications |
+| PUT/DELETE | `/api/notifications/{id}/` | Update / Delete notification |
+
+### Auth
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/login/` | Session-based login (email + password) |
+| GET | `/api/me/` | Get current user |
+| POST | `/api/logout/` | Logout |
+
+### Dashboard (consumed by Module 3)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/dashboard/best-sellers/` | Top-selling products |
+| GET | `/api/dashboard/inventory-report/` | Full inventory report |
+| GET | `/api/dashboard/low-stock-alerts/` | Low stock products |
+| GET | `/api/dashboard/category-breakdown/` | Sales by category |
+| GET | `/api/dashboard/daily-sales-chart/` | Daily sales chart data |
+
+## Seed Users
+
+| Email | Password | Role |
+|-------|----------|------|
+| admin@optistock.com | optistock2026 | System Admin |
+
+## Cross-Module Integration
+
+### What we expose to other modules:
+- All Dashboard endpoints above
+- Product CRUD for stock validation
+- Stock deduction endpoint
+
+### What we consume:
+- (This module is the data source; does not consume external APIs)
+
+## Files
+
+| File | Purpose |
+|------|---------|
+| `backend/` | Django project (config, inventory app) |
+| `src/` | React frontend (pages, components, services) |
+| `optistock_complete.sql` | Full schema + seed data |

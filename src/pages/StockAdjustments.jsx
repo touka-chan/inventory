@@ -16,7 +16,8 @@ import {
   ChevronDown,
   Info,
   LogOut,
-  ArchiveRestore
+  ArchiveRestore,
+  Trash2
 } from "lucide-react";
 
 function StockAdjustments() {
@@ -76,7 +77,7 @@ function StockAdjustments() {
       const [prodRes, logRes, notifRes] = await Promise.all([
         api.getProductDropdown(), api.getStockLedger(), api.getNotifications(),
       ]);
-      setProducts(prodRes);
+      setProducts(prodRes.results || prodRes);
       setLogs(logRes.results || logRes);
       setNotifications(notifRes.results || notifRes);
     } catch (err) {
@@ -101,8 +102,8 @@ function StockAdjustments() {
   // Filtered Logs
   const filteredLogs = useMemo(() => {
     return logs.filter(log => {
-      const matchesSearch = log.product_name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                            log.notes.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = (log.product_name || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+                            (log.notes || '').toLowerCase().includes(searchQuery.toLowerCase());
       const matchesType = typeFilter === "All" || log.type === typeFilter;
       return matchesSearch && matchesType;
     });
@@ -184,7 +185,7 @@ function StockAdjustments() {
       setLogs([result, ...logs]);
       // Refresh product list to get updated stock
       const freshProducts = await api.getProductDropdown();
-      setProducts(freshProducts);
+      setProducts(freshProducts.results || freshProducts);
       closeModal();
       showToast(`Successfully recorded ${formData.type}.`);
     } catch (err) {

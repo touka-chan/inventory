@@ -30,6 +30,7 @@ function InventoryHub() {
   const [suppliers, setSuppliers] = useState([]);
   const [categories, setCategories] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [posSales, setPosSales] = useState(null);
 
   // Filtering & Search States
   const [searchQuery, setSearchQuery] = useState("");
@@ -108,13 +109,15 @@ function InventoryHub() {
 
   const loadData = useCallback(async () => {
     try {
-      const [prodRes, catRes, supRes, notifRes] = await Promise.all([
+      const [prodRes, catRes, supRes, notifRes, posRes] = await Promise.all([
         api.getProducts(), api.getCategories(), api.getSuppliers(), api.getNotifications(),
+        api.getPosSalesToday().catch(() => null),
       ]);
       setProducts(prodRes.results || prodRes);
       setCategories(catRes.results || catRes);
       setSuppliers(supRes.results || supRes);
       setNotifications(notifRes.results || notifRes);
+      setPosSales(posRes);
     } catch (err) {
       console.error('Failed to load data:', err);
     }
@@ -496,7 +499,7 @@ function InventoryHub() {
         <div className="p-6 lg:p-10 space-y-6 max-w-7xl mx-auto w-full">
           
           {/* Analytics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-2">
             <div className="bg-[#FFFFFF] p-6 rounded-3xl border border-[#E7E5E4] shadow-sm flex items-center justify-between">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-[#57534E] mb-1">Total Active Items</p>
@@ -525,10 +528,38 @@ function InventoryHub() {
                 <h3 className="text-3xl font-black text-[#1A1A1A]">₱{totalInventoryValue.toLocaleString()}</h3>
               </div>
               <div className="w-14 h-14 bg-[#C3ECE3]/40 rounded-2xl flex items-center justify-center border border-[#C3ECE3] relative z-10">
-                <TrendingUp className="text-[#7BB8A7]" size={24} />
-              </div>
+              <TrendingUp className="text-[#7BB8A7]" size={24} />
             </div>
           </div>
+
+          {/* POS Integration Card — data consumed from Module 2 (POS) */}
+          <div className={`bg-[#FFFFFF] p-6 rounded-3xl border shadow-sm flex items-center justify-between relative overflow-hidden group ${posSales ? 'border-[#E7E5E4]' : 'border-dashed border-[#D96B5E]/40'}`}>
+            <div className="absolute inset-0 bg-gradient-to-r from-[#5e35b1]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <div className="relative z-10">
+              <p className="text-[10px] font-black uppercase tracking-widest text-[#5e35b1] mb-1">
+                Today's POS Sales
+                {posSales && !posSales.error && <span className="ml-1.5 text-[8px] text-[#A8A29E]">(from POS)</span>}
+              </p>
+              <h3 className="text-3xl font-black text-[#1A1A1A]">
+                {posSales && !posSales.error
+                  ? `₱${parseFloat(posSales.total_sales).toLocaleString()}`
+                  : posSales === null
+                    ? <span className="text-base font-bold text-[#A8A29E]">Loading...</span>
+                    : <span className="text-sm font-bold text-[#D96B5E]">POS Offline</span>}
+              </h3>
+              {posSales && !posSales.error && (
+                <p className="text-xs text-[#57534E] font-medium mt-1">
+                  {posSales.order_count} order{posSales.order_count !== 1 ? 's' : ''} · {posSales.total_items} item{posSales.total_items !== 1 ? 's' : ''}
+                </p>
+              )}
+            </div>
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border relative z-10 ${posSales && !posSales.error ? 'bg-[#ede7f6] border-[#d1c4e9]' : 'bg-[#FAD2CB]/20 border-[#FAD2CB]/40'}`}>
+              <svg className={posSales && !posSales.error ? 'text-[#5e35b1]' : 'text-[#D96B5E]/50'} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>
+              </svg>
+            </div>
+          </div>
+        </div>
 
           <div className="bg-[#FFFFFF] rounded-3xl shadow-sm border border-[#E7E5E4] flex flex-col relative z-10 overflow-hidden">
             <div className="p-5 sm:p-6 border-b border-[#E7E5E4] flex flex-col lg:flex-row gap-4 justify-between items-center bg-[#FAF7F2] relative z-30">

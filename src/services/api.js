@@ -59,4 +59,5 @@ export const api = {
   markAllNotificationsRead: () => request('/notifications/mark_all_read/', { method: 'PUT' }),
   deleteNotification: (id) => request(`/notifications/${id}/`, { method: 'DELETE' }),
   clearAllNotifications: () => request('/notifications/clear_all/', { method: 'DELETE' }),
+  getPosSalesToday: () => request('/integration/pos-sales/'),
 };

@@ -1,3 +1,9 @@
+import json
+import ssl
+from urllib.request import urlopen, Request
+from urllib.error import URLError
+
+from django.conf import settings
 from django.contrib.auth.hashers import check_password
 from django.db import transaction
 from django.db.models import F
@@ -71,6 +77,45 @@ def me_view(request):
     except User.DoesNotExist:
         request.session.flush()
         return Response({'error': 'Session invalid.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+
+def _fetch_pos_api(endpoint):
+    """Helper: call M2 POS API and return parsed JSON, or None on failure."""
+    url = f"{settings.POS_API_URL}{endpoint}"
+    try:
+        req = Request(url, headers={'Accept': 'application/json', 'ngrok-skip-browser-warning': 'true'})
+        ctx = ssl._create_unverified_context()
+        with urlopen(req, timeout=5, context=ctx) as resp:
+            return json.loads(resp.read().decode())
+    except (URLError, json.JSONDecodeError, OSError) as e:
+        print(f"POS integration: failed to fetch {url} — {e}")
+        return None
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def integration_pos_sales_view(request):
+    """
+    Consumes M2 (POS) API: GET /api/sales/today/
+    Returns today's POS sales data to the Inventory frontend.
+    This endpoint proves Module 1 consumes data from Module 2.
+    """
+    data = _fetch_pos_api('/sales/today/')
+    if data is None:
+        return Response({
+            'error': 'POS module unavailable',
+            'order_count': 0,
+            'total_sales': '0.00',
+            'total_items': 0,
+            'source': settings.POS_API_URL,
+        }, status=status.HTTP_200_OK)
+
+    return Response({
+        'order_count': data.get('order_count', 0),
+        'total_sales': str(data.get('total_sales', '0.00')),
+        'total_items': data.get('total_items', 0),
+        'source': settings.POS_API_URL,
+    })
 
 
 @api_view(['GET'])
@@ -193,7 +238,7 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def dropdown(self, request):
-        products = self.queryset.only('id', 'sku', 'name', 'stock')
+        products = self.queryset.only('id', 'sku', 'name', 'selling_price', 'stock')
         serializer = self.get_serializer(products, many=True)
         return Response(serializer.data)
 

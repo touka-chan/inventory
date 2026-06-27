@@ -31,3 +31,19 @@ textarea {
 ::selection {
   background-color: rgba(191, 255, 0, 0.35);
 }
+
+@keyframes toastIn {
+  0% { opacity: 0; transform: translateY(30px) scale(0.95); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes toastOut {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(20px) scale(0.95); }
+}
+@keyframes progressBarShrink {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+.animate-toast-in { animation: toastIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.animate-toast-out { animation: toastOut 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.animate-progress-bar { animation: progressBarShrink 4.7s linear forwards; }

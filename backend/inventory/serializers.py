@@ -47,9 +47,11 @@ class ProductSerializer(serializers.ModelSerializer):
 
 
 class ProductDropdownSerializer(serializers.ModelSerializer):
+    price = serializers.DecimalField(source='selling_price', max_digits=12, decimal_places=2)
+
     class Meta:
         model = Product
-        fields = ['id', 'sku', 'name', 'stock']
+        fields = ['id', 'sku', 'name', 'price', 'stock']
         read_only_fields = ['id']
 
 
