@@ -280,6 +280,51 @@ class ProductViewSet(viewsets.ModelViewSet):
         Supplier.objects.filter(id=sup_id).update(products_supplied=F('products_supplied') - 1)
         return Response({'status': 'permanently deleted'})
 
+    @action(detail=False, methods=['post'], url_path='deduct-stock')
+    def deduct_stock(self, request):
+        product_id = request.data.get('product_id')
+        quantity = request.data.get('quantity')
+
+        if not product_id or not quantity:
+            return Response({'error': 'product_id and quantity required'}, status=400)
+
+        try:
+            product = Product.objects.get(id=product_id, status='active')
+        except Product.DoesNotExist:
+            return Response({'error': f'Product {product_id} not found'}, status=404)
+
+        try:
+            qty = int(quantity)
+        except (ValueError, TypeError):
+            return Response({'error': 'quantity must be an integer'}, status=400)
+
+        if qty <= 0:
+            return Response({'error': 'quantity must be positive'}, status=400)
+
+        if product.stock < qty:
+            return Response({'error': f'Insufficient stock. Available: {product.stock}, requested: {qty}'}, status=400)
+
+        product.stock -= qty
+        product.save(update_fields=['stock'])
+
+        from django.utils.timezone import now
+        StockLedger.objects.create(
+            product=product,
+            type='Stock Out',
+            qty=qty,
+            balance_after=product.stock,
+            user_id='EMP-018',
+            tx_id=f'TXN-{now():%Y%m%d%H%M%S%f}',
+            notes='POS sale via M2 integration (auto-deduct)',
+        )
+
+        return Response({
+            'status': 'ok',
+            'product_id': product.id,
+            'stock_before': product.stock + qty,
+            'stock_after': product.stock,
+        })
+
 
 class StockLedgerViewSet(viewsets.ModelViewSet):
     queryset = StockLedger.objects.all()
