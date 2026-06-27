@@ -289,7 +289,7 @@ class ProductViewSet(viewsets.ModelViewSet):
             return Response({'error': 'product_id and quantity required'}, status=400)
 
         try:
-            product = Product.objects.get(id=product_id, status='active')
+            product = Product.objects.get(Q(id=product_id) | Q(sku=product_id), status='active')
         except Product.DoesNotExist:
             return Response({'error': f'Product {product_id} not found'}, status=404)
 
