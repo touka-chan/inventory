@@ -11,10 +11,16 @@ CREATE DATABASE pos_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 exit;
 ```
 
-## 3. Clone M2 from GitHub
+## 3. Get M2 code
+**Kung bagong install:**
 ```
 git clone https://github.com/cinnamika/POS-Management-System.git
 cd POS-Management-System
+```
+**Kung na-clone na dati:**
+```
+cd POS-Management-System
+git pull
 ```
 
 ## 4. Install dependencies
