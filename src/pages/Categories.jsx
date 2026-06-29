@@ -8,7 +8,7 @@ import {
   Bell,
   Plus,
   Edit,
-  Trash2,
+  Archive,
   AlertCircle,
   X,
   CheckCircle2,
@@ -542,7 +542,7 @@ function Categories() {
                                 }`}
                                 title={category.product_count > 0 ? "Cannot delete category in use" : "Delete Category"}
                               >
-                                <Trash2 size={16} />
+                                <Archive size={16} />
                               </button>
                             </div>
                           </td>
@@ -671,7 +671,7 @@ function Categories() {
                   onClick={confirmDelete}
                   className="w-full flex justify-center items-center gap-1.5 px-4 py-3.5 rounded-xl font-black uppercase tracking-widest text-[10px] sm:text-xs shadow-md transition-all hover:scale-[1.02] active:scale-95 bg-[#D96B5E] hover:bg-[#C45A4D] text-[#FFFFFF] cursor-pointer"
                 >
-                  <Trash2 size={16} /> Delete
+                  <Archive size={16} /> Delete
                 </button>
               </div>
             </div>
@@ -786,7 +786,7 @@ function Categories() {
                                 onClick={() => setPermDeleteTarget(p.id)}
                                 className="px-3 py-2 bg-[#FAD2CB]/40 border border-[#FAD2CB] text-[#D96B5E] rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-[#FAD2CB]/60 transition-all cursor-pointer flex items-center gap-1"
                               >
-                                <Trash2 size={14} /> Delete
+                                <Archive size={14} /> Delete
                               </button>
                             </div>
                           </td>
@@ -839,7 +839,7 @@ function Categories() {
                   onClick={handlePermanentDelete}
                   className="w-full flex justify-center items-center gap-1.5 px-4 py-3.5 rounded-xl font-black uppercase tracking-widest text-[10px] sm:text-xs shadow-md transition-all hover:scale-[1.02] active:scale-95 bg-[#D96B5E] hover:bg-[#C45A4D] text-[#FFFFFF] cursor-pointer"
                 >
-                  <Trash2 size={16} /> Delete Forever
+                  <Archive size={16} /> Delete Forever
                 </button>
               </div>
             </div>
