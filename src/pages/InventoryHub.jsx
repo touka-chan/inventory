@@ -22,7 +22,8 @@ import {
   ChevronDown,
   Info,
   LogOut,
-  ArchiveRestore
+  ArchiveRestore,
+  Archive
 } from "lucide-react";
 
 function InventoryHub() {
@@ -583,7 +584,7 @@ function InventoryHub() {
                     <span className="text-sm font-bold text-[#9A2E22]">{selectedProducts.length} selected</span>
                     <div className="w-px h-4 bg-[#D96B5E]/30"></div>
                     <button onClick={() => openDeleteModal('bulk')} className="text-xs font-black uppercase tracking-widest text-[#9A2E22] hover:text-[#7A241A] transition-colors flex items-center gap-1 cursor-pointer">
-                      <Trash2 size={14} /> Delete
+                      <Archive size={14} /> Archive
                     </button>
                   </div>
                 ) : (
@@ -774,9 +775,9 @@ function InventoryHub() {
                           <button 
                             onClick={() => openDeleteModal('single', product.id)}
                             className="p-2 text-[#D96B5E] hover:bg-[#FAD2CB]/50 rounded-lg transition-colors border border-transparent hover:border-[#FAD2CB]"
-                            title="Delete Product"
+                            title="Archive Product"
                           >
-                            <Trash2 size={16} />
+                            <Archive size={16} />
                           </button>
                         </div>
                       </td>
@@ -995,7 +996,7 @@ function InventoryHub() {
                   onClick={confirmDelete}
                   className="w-full flex justify-center items-center gap-1.5 px-4 py-3.5 rounded-xl font-black uppercase tracking-widest text-[10px] sm:text-xs shadow-md transition-all hover:scale-[1.02] active:scale-95 bg-[#D96B5E] hover:bg-[#C45A4D] text-[#FFFFFF] cursor-pointer"
                 >
-                  <Trash2 size={16} /> Archive
+                  <Archive size={16} /> Archive
                 </button>
               </div>
             </div>
