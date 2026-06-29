@@ -347,6 +347,7 @@ function StockAdjustments() {
                 <div className="p-3 border-b border-[#E7E5E4] bg-[#FAF7F2]">
                   <p className="text-xs font-bold text-[#57534E]">Signed in as</p>
                   <p className="text-sm font-black text-[#1A1A1A] truncate">{currentUser.name || 'Admin'}</p>
+                  <p className="text-xs font-bold text-[#A8A29E] uppercase tracking-wider mt-0.5">{currentUser.role || ''}</p>
                 </div>
 
                 <button
