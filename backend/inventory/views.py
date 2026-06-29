@@ -184,7 +184,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         last_id = Product.objects.order_by('id').last()
         next_num = int(last_id.id[1:]) + 1 if last_id else 1
         all_nums = []
-        for s in Product.objects.values_list('sku', flat=True):
+        for s in Product.objects.filter(status='active').values_list('sku', flat=True):
             all_nums.extend(int(n) for n in re.findall(r'\d+', s))
         next_sku = max(all_nums) + 1 if all_nums else 1
         product = serializer.save(id=f'P{next_num:03d}', sku=f'SKU-{next_sku:04d}')
