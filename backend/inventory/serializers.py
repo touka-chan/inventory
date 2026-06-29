@@ -36,7 +36,7 @@ class ProductSerializer(serializers.ModelSerializer):
             'supplier', 'supplier_name', 'cost_price', 'selling_price',
             'stock', 'reorder_level', 'status', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'status', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'sku', 'status', 'created_at', 'updated_at']
 
     def validate(self, data):
         if data.get('selling_price', 0) <= data.get('cost_price', 0):

@@ -180,9 +180,14 @@ class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
 
     def perform_create(self, serializer):
+        import re
         last_id = Product.objects.order_by('id').last()
         next_num = int(last_id.id[1:]) + 1 if last_id else 1
-        product = serializer.save(id=f'P{next_num:03d}')
+        all_nums = []
+        for s in Product.objects.values_list('sku', flat=True):
+            all_nums.extend(int(n) for n in re.findall(r'\d+', s))
+        next_sku = max(all_nums) + 1 if all_nums else 1
+        product = serializer.save(id=f'P{next_num:03d}', sku=f'SKU-{next_sku:04d}')
         Category.objects.filter(id=product.category_id).update(product_count=F('product_count') + 1)
         Supplier.objects.filter(id=product.supplier_id).update(products_supplied=F('products_supplied') + 1)
         if product.stock > 0:

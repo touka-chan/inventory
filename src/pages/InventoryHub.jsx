@@ -198,7 +198,7 @@ function InventoryHub() {
   const handleInputChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
   const resetForm = () => {
-    setFormData({ sku: "", name: "", category: "Electronics", supplierId: "", costPrice: "", sellingPrice: "", reorderLevel: "", stock: "" });
+    setFormData({ name: "", category: "Electronics", supplierId: "", costPrice: "", sellingPrice: "", reorderLevel: "", stock: "" });
     setFormError("");
   };
 
@@ -212,7 +212,7 @@ function InventoryHub() {
     resetForm();
     setEditingProduct(product);
     setFormData({
-      sku: product.sku, name: product.name, category: product.category_name, supplierId: product.supplier_id || "",
+      name: product.name, category: product.category_name, supplierId: product.supplier_id || "",
       costPrice: product.cost_price, sellingPrice: product.selling_price, reorderLevel: product.reorder_level, stock: product.stock,
     });
     setIsEditModalOpen(true);
@@ -238,7 +238,7 @@ function InventoryHub() {
 
     try {
       const payload = {
-        sku: formData.sku, name: formData.name,
+        name: formData.name,
         category: categoryNameToId(formData.category),
         supplier: formData.supplierId,
         cost_price: parseFloat(formData.costPrice),
@@ -263,7 +263,7 @@ function InventoryHub() {
 
     try {
       const payload = {
-        sku: formData.sku, name: formData.name,
+        name: formData.name,
         category: categoryNameToId(formData.category),
         supplier: formData.supplierId,
         cost_price: parseFloat(formData.costPrice),
@@ -809,14 +809,6 @@ function InventoryHub() {
 
               <form id="productForm" onSubmit={isAddModalOpen ? handleAddProduct : handleEditProduct} className="space-y-5">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-xs font-black uppercase tracking-widest text-[#1A1A1A] mb-2">Barcode / SKU</label>
-                    <input 
-                      type="text" required name="sku" value={formData.sku} onChange={handleInputChange}
-                      className="w-full px-4 py-3 bg-[#FAF7F2] border border-[#E7E5E4] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A1A1A] transition-all font-mono text-sm font-bold text-[#1A1A1A]"
-                    />
-                  </div>
-                  
                   {/* --- CUSTOM FORM CATEGORY DROPDOWN --- */}
                   <div className="relative" ref={formCategoryRef}>
                     <label className="block text-xs font-black uppercase tracking-widest text-[#1A1A1A] mb-2">Category</label>
