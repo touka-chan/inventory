@@ -276,13 +276,9 @@ class ProductViewSet(viewsets.ModelViewSet):
             product = Product.objects.get(id=pk, status='archived')
         except Product.DoesNotExist:
             return Response({'error': 'Archived product not found.'}, status=404)
-        cat_id = product.category_id
-        sup_id = product.supplier_id
         with transaction.atomic():
             StockLedger.objects.filter(product=product).delete()
             product.delete()
-        Category.objects.filter(id=cat_id).update(product_count=F('product_count') - 1)
-        Supplier.objects.filter(id=sup_id).update(products_supplied=F('products_supplied') - 1)
         return Response({'status': 'permanently deleted'})
 
     @action(detail=False, methods=['post'], url_path='deduct-stock')
