@@ -191,6 +191,18 @@ function Categories() {
       setFormError("Category name cannot be empty.");
       return;
     }
+    if (!/^[a-zA-Z0-9 ]+$/.test(cleanName)) {
+      setFormError("Category name: letters, numbers, and spaces only.");
+      return;
+    }
+    if (cleanName.length > 40) {
+      setFormError("Category name must be 40 characters or fewer.");
+      return;
+    }
+    if (formData.description && formData.description.length > 60) {
+      setFormError("Description must be 60 characters or fewer.");
+      return;
+    }
 
     try {
       if (editingCategory) {
@@ -583,7 +595,7 @@ function Categories() {
                 <div>
                   <label className="block text-xs font-black uppercase tracking-widest text-[#1A1A1A] mb-2">Category Name</label>
                   <input 
-                    type="text" required name="name" value={formData.name} onChange={handleInputChange}
+                    type="text" required name="name" value={formData.name} onChange={handleInputChange} maxLength={40}
                     className="w-full px-4 py-3 bg-[#FFFFFF] border-2 border-[#1A1A1A] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#7BB8A7] transition-all text-base font-black text-[#1A1A1A]"
                     placeholder="e.g., Electronics, Beverages"
                   />
@@ -593,9 +605,9 @@ function Categories() {
                 <div>
                   <label className="block text-xs font-black uppercase tracking-widest text-[#1A1A1A] mb-2">Description <span className="opacity-50">(Optional)</span></label>
                   <textarea 
-                    name="description" value={formData.description} onChange={handleInputChange}
-                    className="w-full px-4 py-3 bg-[#FAF7F2] border border-[#E7E5E4] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A1A1A] transition-all text-sm font-medium text-[#1A1A1A] min-h-[100px] resize-none"
-                    placeholder="Briefly describe what items fall under this category..."
+                    name="description" value={formData.description} onChange={handleInputChange} maxLength={60}
+                    className="w-full px-4 py-3 bg-[#FAF7F2] border border-[#E7E5E4] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A1A1A] transition-all text-sm font-medium text-[#1A1A1A] min-h-[80px] resize-none"
+                    placeholder="Brief description of the category..."
                   />
                 </div>
 

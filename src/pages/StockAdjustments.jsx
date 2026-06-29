@@ -173,6 +173,11 @@ function StockAdjustments() {
       return;
     }
 
+    if (formData.reason.length > 60) {
+      setFormError("Reason / Remarks must be 60 characters or fewer.");
+      return;
+    }
+
     try {
       const payload = {
         product: formData.productId,
@@ -609,7 +614,7 @@ function StockAdjustments() {
                 <div>
                   <label className="block text-xs font-black uppercase tracking-widest text-[#1A1A1A] mb-2">Reason / Remarks</label>
                   <textarea 
-                    required name="reason" value={formData.reason} onChange={handleInputChange}
+                    required name="reason" value={formData.reason} onChange={handleInputChange} maxLength={60}
                     className="w-full px-4 py-3 bg-[#FAF7F2] border border-[#E7E5E4] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A1A1A] transition-all text-sm font-medium text-[#1A1A1A] min-h-[100px] resize-none"
                     placeholder="e.g., Damaged item disposed, found extra inventory..."
                   />

@@ -203,6 +203,34 @@ function Suppliers() {
       setFormError("Company name cannot be empty.");
       return;
     }
+    if (!/^[a-zA-Z0-9 ]+$/.test(cleanName)) {
+      setFormError("Company name: letters, numbers, and spaces only.");
+      return;
+    }
+    if (cleanName.length > 40) {
+      setFormError("Company name must be 40 characters or fewer.");
+      return;
+    }
+    if (!/^[a-zA-Z ]+$/.test(formData.contactPerson)) {
+      setFormError("Contact person: letters and spaces only.");
+      return;
+    }
+    if (formData.contactPerson.length > 40) {
+      setFormError("Contact person must be 40 characters or fewer.");
+      return;
+    }
+    if (formData.email.length > 40) {
+      setFormError("Email must be 40 characters or fewer.");
+      return;
+    }
+    if (!/^\d{11}$/.test(formData.phone)) {
+      setFormError("Phone number must be exactly 11 digits.");
+      return;
+    }
+    if (formData.address.length > 50) {
+      setFormError("Address must be 50 characters or fewer.");
+      return;
+    }
 
     try {
       if (editingSupplier) {
@@ -626,7 +654,7 @@ function Suppliers() {
                     <div>
                       <label className="block text-xs font-black uppercase tracking-widest text-[#1A1A1A] mb-2">Company / Vendor Name</label>
                       <input 
-                        type="text" required name="companyName" value={formData.companyName} onChange={handleInputChange}
+                        type="text" required name="companyName" value={formData.companyName} onChange={handleInputChange} maxLength={40}
                         className="w-full px-4 py-3 bg-[#FFFFFF] border-2 border-[#1A1A1A] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#7BB8A7] transition-all text-sm font-black text-[#1A1A1A]"
                         placeholder="e.g., Prime Logistics"
                       />
@@ -635,7 +663,7 @@ function Suppliers() {
                     <div>
                       <label className="block text-xs font-black uppercase tracking-widest text-[#1A1A1A] mb-2">Contact Person</label>
                       <input 
-                        type="text" required name="contactPerson" value={formData.contactPerson} onChange={handleInputChange}
+                        type="text" required name="contactPerson" value={formData.contactPerson} onChange={handleInputChange} maxLength={40}
                         className="w-full px-4 py-3 bg-[#FAF7F2] border border-[#E7E5E4] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A1A1A] transition-all text-sm font-bold text-[#1A1A1A]"
                         placeholder="Full Name"
                       />
@@ -648,7 +676,7 @@ function Suppliers() {
                       <div className="relative">
                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A8A29E]" />
                         <input 
-                          type="email" name="email" value={formData.email} onChange={handleInputChange}
+                          type="email" name="email" value={formData.email} onChange={handleInputChange} maxLength={40}
                           className="w-full pl-10 pr-4 py-3 bg-[#FAF7F2] border border-[#E7E5E4] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A1A1A] transition-all text-sm font-bold text-[#1A1A1A]"
                           placeholder="sales@company.com"
                         />
@@ -660,7 +688,7 @@ function Suppliers() {
                       <div className="relative">
                         <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A8A29E]" />
                         <input 
-                          type="text" name="phone" value={formData.phone} onChange={handleInputChange}
+                          type="text" name="phone" value={formData.phone} onChange={handleInputChange} maxLength={11}
                           className="w-full pl-10 pr-4 py-3 bg-[#FAF7F2] border border-[#E7E5E4] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A1A1A] transition-all text-sm font-bold text-[#1A1A1A]"
                           placeholder="+63 912 345 6789"
                         />
@@ -673,7 +701,7 @@ function Suppliers() {
                     <div className="relative">
                       <MapPin className="absolute left-3 top-4 w-4 h-4 text-[#A8A29E]" />
                       <textarea 
-                        name="address" value={formData.address} onChange={handleInputChange}
+                        name="address" value={formData.address} onChange={handleInputChange} maxLength={50}
                         className="w-full pl-10 pr-4 py-3 bg-[#FAF7F2] border border-[#E7E5E4] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A1A1A] transition-all text-sm font-medium text-[#1A1A1A] min-h-[80px] resize-none"
                         placeholder="Full street address, city, region..."
                       />
