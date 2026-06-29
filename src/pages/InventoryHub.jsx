@@ -230,9 +230,21 @@ function InventoryHub() {
   };
 
   // Submit Handlers
+  const validateForm = () => {
+    if (!/^[a-zA-Z0-9 ]+$/.test(formData.name)) return "Product name: letters, numbers, and spaces only.";
+    if (formData.name.length > 40) return "Product name must be 40 characters or fewer.";
+    if (formData.costPrice === "" || isNaN(parseFloat(formData.costPrice))) return "Cost price must be a number.";
+    if (formData.sellingPrice === "" || isNaN(parseFloat(formData.sellingPrice))) return "Selling price must be a number.";
+    if (formData.reorderLevel === "" || isNaN(parseInt(formData.reorderLevel))) return "Reorder level must be a number.";
+    if (formData.stock === "" || isNaN(parseInt(formData.stock))) return "Stock must be a number.";
+    return null;
+  };
+
   const handleAddProduct = async (e) => {
     e.preventDefault();
     setFormError("");
+    const err = validateForm();
+    if (err) return setFormError(err);
     if (parseFloat(formData.sellingPrice) <= parseFloat(formData.costPrice)) return setFormError("Selling price must be strictly greater than cost price.");
     if (!formData.supplierId) return setFormError("Please select a supplier.");
 
@@ -258,6 +270,8 @@ function InventoryHub() {
   const handleEditProduct = async (e) => {
     e.preventDefault();
     setFormError("");
+    const err = validateForm();
+    if (err) return setFormError(err);
     if (parseFloat(formData.sellingPrice) <= parseFloat(formData.costPrice)) return setFormError("Selling price must be strictly greater than cost price.");
     if (!formData.supplierId) return setFormError("Please select a supplier.");
 
